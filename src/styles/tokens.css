@@ -1,0 +1,89 @@
+/*
+ * 디자인 토큰 — prototypes/mrk_editor_prototype.html(i2m_kormarc 저장소)의 :root 변수를
+ * 그대로 옮겨왔다. 새 디자인을 만들지 않고 이미 확정된 프로토타입의 색/폰트를 그대로
+ * 재사용하기 위함 — 값이 바뀌면 원본 HTML도 같이 갱신해야 어긋나지 않는다.
+ */
+:root {
+  --shell-bg: #0f1219;
+  --shell-bg2: #151925;
+  --sidebar-bg: #161a24;
+  --panel-bg: #1a1e2a;
+  --border-dark: #262c3b;
+  --text-light: #e7e9f0;
+  --text-dim: #8991a6;
+  --text-faint: #5c6379;
+
+  --accent-emerald: #2fa574;
+  --accent-emerald-bg: #12281f;
+  --accent-amber: #d9822b;
+  --accent-rose: #c9536f;
+
+  --card-bg: #ffffff;
+  --card-edge: #d8dbe4;
+  --ink: #1f2430;
+  --ink-dim: #6b7280;
+
+  --tag-blue: #1c4fa0;
+  --tag-blue-bg: #e7eefc;
+  --sf-rust: #a6501c;
+  --sf-rust-bg: #fbeee2;
+  /* (이전 라운드에서 태그 칩 배경/글자색으로 썼던 하늘색/남색 — 지금은 칩 배경 자체를
+     없애서 아무 데도 안 쓰이지만, 다른 곳에서 참조할 수도 있어 토큰은 남겨둔다.) */
+  --tag-sky-bg: #cdeafb;
+  --tag-navy: #16305c;
+  /* 필드 숫자(태그) 글자색 — 분홍, 지시기호 글자색은 --tag-blue를 그대로 재사용(파랑). */
+  --tag-pink: #d6336c;
+
+  --rail-control: #7c8494;
+  --rail-class: #7c4dd6;
+  --rail-title: #3b6fd1;
+  --rail-pub: #1f9e83;
+  --rail-note: #8a8f9c;
+  --rail-subject: #a15fc9;
+  --rail-added: #d9822b;
+  --rail-price: #2fa574;
+  --rail-series: #2f8fa5;
+
+  --font-ui: 'IBM Plex Sans KR', -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+body {
+  font-family: var(--font-ui);
+  background: var(--shell-bg);
+  color: var(--text-light);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 공용 툴팁 — mrk_editor_prototype.html의 [data-tooltip] 그대로.
+   <input>은 replaced element라 ::after가 안 그려지므로, input에 직접 달지 말고
+   감싸는 span/button/div에 data-tooltip을 둬야 한다(FieldEditor의 .tag-badge-wrap 참고). */
+[data-tooltip] {
+  position: relative;
+}
+[data-tooltip]:not([data-tooltip='']):hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  background: #1c1f2b;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.4;
+  padding: 6px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 20;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}

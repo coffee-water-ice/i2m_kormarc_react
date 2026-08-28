@@ -1,0 +1,276 @@
+/* mrk_editor_prototype.html의 .topbar/.card/.raw-panel/.toast를 이식.
+   "변환 내역"은 이 페이지가 아니라 전역 사이드바의 "ISBN 변환" 항목에 토글 +
+   드롭다운으로 붙어 있다(App.css의 .app-nav-group/.app-nav-toggle/.app-nav-history) —
+   그래야 편집 카드·분류 패널(오른쪽 항목들) 폭을 전혀 건드리지 않는다. */
+
+.isbn-page {
+  min-width: 0;
+}
+
+/* ── 상단 ISBN 입력줄 ── */
+.isbn-main {
+  min-width: 0;
+}
+.topbar {
+  margin-bottom: 18px;
+}
+.isbn-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.isbn-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.isbn-field label {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+.isbn-field input {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-dark);
+  color: var(--text-light);
+  border-radius: 8px;
+  padding: 9px 12px;
+  width: 260px;
+}
+.btn-primary {
+  background: var(--accent-rose);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.status-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent-emerald-bg);
+  color: var(--accent-emerald);
+  border: 1px solid #1f4a37;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+}
+.status-banner.error {
+  background: #2c1520;
+  color: var(--accent-rose);
+  border-color: #4a1f2c;
+}
+
+/* ── 변환 중 개구리 애니메이션 ──
+   .frog-track(트랙, overflow:hidden) 안에서 .frog-hop이 좌우로 왕복하고(frog-walk),
+   그 안의 .frog-emoji가 훨씬 빠른 주기로 통통 뛴다(frog-bounce) — 두 애니메이션을
+   분리해두면 "옆으로 이동 + 위아래로 콩콩" 두 움직임이 자연스럽게 겹친다. */
+.frog-track {
+  position: relative;
+  /* 예전엔 26px/top:4px라 점프 정점(-14px)에서 트랙 위쪽 밖으로 나가 overflow:hidden에
+     잘렸다 — 높이를 넉넉히 키우고 기준선(top)도 아래로 내려서 위쪽 여유를 확보했다. */
+  height: 44px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.frog-hop {
+  position: absolute;
+  top: 22px;
+  left: 0;
+  /* 원래 2.4s/0.4s였는데 80% 느리게(=속도 20%, 주기 5배) 요청받아서 12s/2s로. */
+  animation: frog-walk 12s ease-in-out infinite alternate;
+}
+.frog-emoji {
+  display: inline-block;
+  font-size: 18px;
+  line-height: 1;
+  animation: frog-bounce 2s ease-in-out infinite;
+}
+@keyframes frog-walk {
+  0% {
+    left: 0;
+  }
+  100% {
+    /* 이모지 글자가 font-size보다 넓게 그려질 때가 있어서 오른쪽 끝 여유도 22px→30px로. */
+    left: calc(100% - 30px);
+  }
+}
+@keyframes frog-bounce {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  35% {
+    transform: translateY(-11px) scale(0.88, 1.12);
+  }
+  55% {
+    transform: translateY(-14px) scale(0.85, 1.15);
+  }
+  75% {
+    transform: translateY(-9px) scale(0.9, 1.1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .frog-hop,
+  .frog-emoji {
+    animation: none;
+  }
+}
+
+/* ── 편집 카드 + 분류 패널 그리드 ── */
+.editor-wrap {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 20px;
+  align-items: start;
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: 0 20px 40px -18px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  min-width: 0;
+}
+.card-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #eceef3;
+}
+.card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.card-title small {
+  display: block;
+  font-weight: 400;
+  color: var(--ink-dim);
+  font-size: 11px;
+  margin-top: 2px;
+}
+.card-title small.dirty {
+  color: var(--accent-amber);
+  font-weight: 600;
+}
+.card-actions {
+  display: flex;
+  gap: 6px;
+}
+.card-actions button {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  background: #f3f4f8;
+  color: var(--ink);
+  border: 1px solid #e2e4ec;
+  border-radius: 7px;
+  padding: 7px 11px;
+  cursor: pointer;
+}
+.card-actions button:hover {
+  background: #e9ebf2;
+}
+.card-actions button.raw-toggle {
+  color: var(--tag-blue);
+  border-color: #c9d8f5;
+  background: #f0f4fd;
+}
+.card-actions button.raw-toggle.active {
+  background: var(--tag-blue);
+  color: #fff;
+}
+.card-actions button.btn-save {
+  color: #fff;
+  background: var(--accent-emerald);
+  border-color: var(--accent-emerald);
+  font-weight: 600;
+}
+.card-actions button.btn-save:hover {
+  background: #268a63;
+}
+.card-actions button.btn-save:disabled {
+  background: #f3f4f8;
+  color: var(--ink-dim);
+  border-color: #e2e4ec;
+  opacity: 0.6;
+  cursor: default;
+}
+
+.raw-panel {
+  padding: 14px 18px 16px;
+  background: #fafbfd;
+  border-bottom: 1px solid #eceef3;
+}
+.raw-panel p {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+.raw-panel textarea {
+  width: 100%;
+  min-height: 200px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid #e2e4ec;
+  border-radius: 8px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.raw-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.raw-actions button {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  border-radius: 7px;
+  padding: 7px 12px;
+  cursor: pointer;
+  border: 1px solid #e2e4ec;
+  background: #fff;
+  color: var(--ink);
+}
+.raw-actions button.primary {
+  background: var(--tag-blue);
+  border-color: var(--tag-blue);
+  color: #fff;
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1c1f2b;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  z-index: 50;
+}
+
+@media (max-width: 900px) {
+  .isbn-page {
+    grid-template-columns: 1fr;
+  }
+  .editor-wrap {
+    grid-template-columns: 1fr;
+  }
+}

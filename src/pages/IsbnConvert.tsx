@@ -1,0 +1,346 @@
+import { useEffect, useRef, useState } from 'react'
+import { convertIsbn } from '../api/client'
+import type { HistoryRecord } from '../types/history'
+import type { MrkField } from '../types/mrk'
+import { useIsbnHistory } from '../context/isbnHistory'
+import { parseMrkText, serializeRecord, extractTitle, applyKdcToFields, nextUid } from '../lib/mrk'
+import FieldEditor from '../components/FieldEditor'
+import ClassificationPanel from '../components/ClassificationPanel'
+import './IsbnConvert.css'
+
+/** ms를 "N분 M.M초"(60초 이상일 때만 분을 붙임) / "M.M초"로 표시. */
+function formatElapsed(ms: number): string {
+  const totalSec = ms / 1000
+  if (totalSec < 60) return `${totalSec.toFixed(1)}초`
+  const min = Math.floor(totalSec / 60)
+  const sec = totalSec - min * 60
+  return `${min}분 ${sec.toFixed(1)}초`
+}
+
+/**
+ * pages/1_2026_ISBN_변환.py + pages/4_ISBN_변환_프로토타입.py(스트림릿)의 후속 —
+ * prototypes/mrk_editor_prototype.html의 UI/UX를 React로 실제 이식한 페이지.
+ * FieldEditor/ClassificationPanel 두 컴포넌트로 조립한다.
+ *
+ * 변환 내역(history) 자체는 이 페이지가 아니라 전역 사이드바(App.tsx)가 들고 있다 —
+ * "ISBN 변환" 네비 항목에 토글 + 드롭다운으로 붙여야 해서(useIsbnHistory, Outlet context).
+ */
+export default function IsbnConvert() {
+  const { history, setHistory, currentUid, setCurrentUid, dirtyRef } = useIsbnHistory()
+  const [isbn, setIsbn] = useState('')
+  const [converting, setConverting] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [showRaw, setShowRaw] = useState(false)
+  const [rawText, setRawText] = useState('')
+  const [toast, setToast] = useState<string | null>(null)
+  // 056 후보를 고를 때마다 매번 다시 반짝이게(같은 태그를 연달아 골라도 재실행되도록)
+  // 태그명이 아니라 매번 값이 바뀌는 토큰으로 들고 있는다.
+  const [pulseSignal, setPulseSignal] = useState<{ tag: string; token: number } | null>(null)
+
+  const current = history.find((r) => r.uid === currentUid) ?? null
+
+  // "사서 편집" 카드는 저장 버튼을 눌러야 확정되는 초안(draft) 모델로 동작한다 — history
+  // (전역 상태, App.tsx 사이드바가 참조)에는 곧바로 patch하지 않고, 이 페이지 안에서만
+  // 사는 draftFields/draftKdcSelected/draftKdcDetail을 고치다가 handleSaveDraft에서
+  // 한 번에 커밋한다. 다른 변환 내역으로 전환하면(currentUid 변경) 그 레코드의 마지막
+  // 저장 상태로 초기화된다 — 저장하지 않은 변경사항은 그 시점에 버려진다(의도된 동작).
+  const [draftFields, setDraftFields] = useState<MrkField[]>([])
+  const [draftKdcSelected, setDraftKdcSelected] = useState('')
+  const [draftKdcDetail, setDraftKdcDetail] = useState('')
+  // Ctrl+Z 되돌리기 — "draft 필드 변경 전" 스냅샷을 쌓아둔다. 모든 키 입력마다 찍으면
+  // (예: 제목 타이핑) 한 글자씩 undo해야 해서 정신없으므로, 서브필드 삭제·삽입·지시기호
+  // 변경·공백 트림처럼 되돌릴 필요가 큰 "구조적" 조작과 원본 텍스트 일괄 반영·KDC 후보
+  // 선택 직전에만 스냅샷을 남긴다(값 타이핑 자체는 각 <input>의 브라우저 기본 되돌리기에
+  // 맡긴다). 레코드를 바꾸면 초안과 함께 스택도 비운다.
+  const undoStackRef = useRef<MrkField[][]>([])
+
+  useEffect(() => {
+    setDraftFields(current?.fields ?? [])
+    setDraftKdcSelected(current?.kdcSelected ?? '')
+    setDraftKdcDetail(current?.kdcDetail ?? '')
+    undoStackRef.current = []
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.uid])
+
+  // 마지막 저장 상태(current)와 지금 초안이 다르면 "저장 안 된 변경사항 있음".
+  const dirty =
+    !!current &&
+    (JSON.stringify(draftFields) !== JSON.stringify(current.fields) ||
+      draftKdcSelected !== current.kdcSelected ||
+      draftKdcDetail !== current.kdcDetail)
+
+  // App.tsx 사이드바가 "다른 항목으로 전환하기 전 확인창"을 띄울지 판단할 때 쓰는 값이라
+  // 매 렌더마다 최신 dirty로 채워 넣는다(ref라서 이 자체는 리렌더를 유발하지 않는다).
+  useEffect(() => {
+    dirtyRef.current = dirty
+  }, [dirty, dirtyRef])
+
+  // 이 페이지를 떠나면(홈/평가시스템으로 이동 등) 더 이상 보호할 초안이 없으니 ref를
+  // 비워서, 나중에 사이드바에서 항목을 고를 때 낡은 dirty 값으로 확인창이 잘못 뜨지
+  // 않게 한다.
+  useEffect(() => {
+    return () => {
+      dirtyRef.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function pushUndoSnapshot() {
+    undoStackRef.current = [...undoStackRef.current, draftFields].slice(-30)
+  }
+
+  useEffect(() => {
+    function handleUndoKeyDown(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== 'z') return
+      // 원본 텍스트 textarea는 자기 자신의(여러 줄) 브라우저 되돌리기가 더 자연스러우니
+      // 여기서는 손대지 않는다.
+      if ((document.activeElement as HTMLElement | null)?.tagName === 'TEXTAREA') return
+      const stack = undoStackRef.current
+      if (stack.length === 0) return
+      e.preventDefault()
+      const prevFields = stack[stack.length - 1]
+      undoStackRef.current = stack.slice(0, -1)
+      setDraftFields(prevFields)
+    }
+    document.addEventListener('keydown', handleUndoKeyDown)
+    return () => document.removeEventListener('keydown', handleUndoKeyDown)
+  }, [])
+
+  function showToast(msg: string) {
+    setToast(msg)
+    window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 2400)
+  }
+
+  function patchCurrent(patch: Partial<HistoryRecord>) {
+    if (!current) return
+    const uid = current.uid
+    setHistory((h) => h.map((r) => (r.uid === uid ? { ...r, ...patch } : r)))
+  }
+
+  /** "저장" 버튼 — 지금까지의 초안을 실제 변환 내역(history)에 확정 반영한다. */
+  function handleSaveDraft() {
+    if (!current) return
+    patchCurrent({
+      fields: draftFields,
+      kdcSelected: draftKdcSelected,
+      kdcDetail: draftKdcDetail,
+      edited: true,
+      title: extractTitle(draftFields),
+    })
+    showToast('사서 편집 내용을 저장했어요.')
+  }
+
+  async function handleConvert() {
+    const clean = isbn.trim()
+    if (!clean) {
+      setErrorMsg('ISBN을 입력해 주세요.')
+      return
+    }
+    setErrorMsg(null)
+    setConverting(true)
+    const result = await convertIsbn(clean)
+    setConverting(false)
+
+    if (result.error) {
+      setErrorMsg(result.error)
+      return
+    }
+    const fields = parseMrkText(result.mrk_text ?? '')
+    const meta = result.meta ?? {}
+    const candidates = meta.kdc_candidates ?? []
+    const rec: HistoryRecord = {
+      uid: nextUid(),
+      isbn: result.isbn,
+      title: extractTitle(fields),
+      meta,
+      fields,
+      edited: false,
+      kdcSelected: candidates[0]?.kdc ?? '',
+      kdcDetail: '',
+    }
+    setHistory((h) => [...h, rec])
+    setCurrentUid(rec.uid)
+    setShowRaw(false)
+  }
+
+  const candidates = current?.meta.kdc_candidates ?? []
+  // 아직 저장 전인 draftFields를 그대로 직렬화한다 — 복사/다운로드/원본 텍스트 미리보기
+  // 모두 "지금 화면에 보이는 대로"를 내보내야 자연스럽다(저장 여부와 무관하게).
+  const finalMrk = serializeRecord(draftFields)
+
+  /** 라디오 선택/세목 입력 결과를 draft의 056 $a에 즉시 반영(저장 전까지는 초안일 뿐). */
+  function pushKdcToFields(selected: string, detail: string) {
+    const finalKdc = `${selected}${detail.trim()}`
+    setDraftKdcSelected(selected)
+    setDraftKdcDetail(detail)
+    setDraftFields((f) => applyKdcToFields(f, finalKdc))
+  }
+
+  function handleKdcSelect(kdc: string) {
+    pushUndoSnapshot()
+    pushKdcToFields(kdc, draftKdcDetail)
+    // 라디오를 고른 순간만 반짝이게 한다(세목 입력은 타이핑마다 반짝이면 정신없어서 제외) —
+    // prototype의 .pulse 애니메이션 + row.scrollIntoView.
+    setPulseSignal((s) => ({ tag: '056', token: (s?.token ?? 0) + 1 }))
+  }
+
+  function handleKdcDetailChange(detail: string) {
+    pushKdcToFields(draftKdcSelected, detail)
+  }
+
+  function handleDownload() {
+    if (!current) return
+    const blob = new Blob([finalMrk], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${current.isbn}.mrk`
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast('.mrk 파일을 내려받았어요.')
+  }
+
+  function handleCopyAll() {
+    navigator.clipboard.writeText(finalMrk)
+    showToast('레코드 전체를 복사했어요.')
+  }
+
+  function handleCopyLine(line: string) {
+    navigator.clipboard.writeText(line)
+    showToast('해당 필드를 복사했어요.')
+  }
+
+  function handleOpenRaw() {
+    if (!showRaw) setRawText(finalMrk)
+    setShowRaw((v) => !v)
+  }
+
+  function handleApplyRaw() {
+    const parsed = parseMrkText(rawText)
+    if (parsed.length === 0) {
+      showToast('파싱할 수 있는 필드를 찾지 못했어요. "=245  00$a..." 형식인지 확인해주세요.')
+      return
+    }
+    pushUndoSnapshot()
+    setDraftFields(parsed)
+    setShowRaw(false)
+    showToast('원본 텍스트를 편집 화면에 반영했어요 — 저장 버튼을 눌러야 확정돼요.')
+  }
+
+  const elapsedMs = current?.meta.elapsed_ms
+  const totalTokens = current?.meta.token_usage?.total_tokens ?? 0
+
+  return (
+    <div className="isbn-page">
+      <div className="isbn-main">
+        <div className="topbar">
+          <div className="isbn-row">
+            <div className="isbn-field">
+              <label htmlFor="isbn-input">ISBN-13</label>
+              <input
+                id="isbn-input"
+                value={isbn}
+                placeholder="예: 9788937462849"
+                onChange={(e) => setIsbn(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleConvert()}
+              />
+            </div>
+            <button className="btn-primary" onClick={handleConvert} disabled={converting}>
+              {converting ? '변환 중...' : '변환 실행'}
+            </button>
+          </div>
+          {converting && (
+            // 변환은 몇 초~수십 초 걸려서(GPT 호출 포함) 그냥 기다리기 심심하니까 —
+            // 개구리 하나가 트랙을 왔다갔다 뛰어다니는 순수 CSS 애니메이션.
+            <div className="frog-track" role="status" aria-label="변환 중">
+              <span className="frog-hop">
+                <span className="frog-emoji" aria-hidden="true">
+                  🐸
+                </span>
+              </span>
+            </div>
+          )}
+          {errorMsg && <div className="status-banner error">⛔ {errorMsg}</div>}
+          {!errorMsg && current && elapsedMs !== undefined && (
+            <div className="status-banner">
+              ● 변환 완료 · 소요시간 {formatElapsed(elapsedMs)} · GPT 토큰 {totalTokens.toLocaleString()}개
+            </div>
+          )}
+        </div>
+
+        {!current && !converting && (
+          <p style={{ color: 'var(--ink-dim)' }}>
+            ISBN을 입력하고 변환 실행을 누르면 편집 화면이 나타납니다. 지난 변환 내역은 왼쪽
+            사이드바의 "ISBN 변환" 옆 토글에서 확인할 수 있어요.
+          </p>
+        )}
+
+        {current && (
+          <section className="editor-wrap">
+            <div className="card">
+              <div className="card-toolbar">
+                <div className="card-title">
+                  사서 편집
+                  <small className={dirty ? 'dirty' : undefined}>
+                    {dirty
+                      ? '저장하지 않은 변경사항이 있어요 — 저장을 눌러야 확정돼요.'
+                      : '필드를 직접 클릭해서 값을 고칠 수 있어요'}
+                  </small>
+                </div>
+                <div className="card-actions">
+                  <button className="btn-save" onClick={handleSaveDraft} disabled={!dirty}>
+                    💾 저장
+                  </button>
+                  <button className={'raw-toggle' + (showRaw ? ' active' : '')} onClick={handleOpenRaw}>
+                    ⇄ 원본 텍스트
+                  </button>
+                  <button onClick={handleCopyAll}>⧉ 전체 복사</button>
+                  <button onClick={handleDownload}>↓ .mrk</button>
+                </div>
+              </div>
+
+              {showRaw && (
+                <div className="raw-panel">
+                  <p>여기서 직접 고친 뒤 아래 버튼으로 편집 화면에 반영할 수 있어요.</p>
+                  <textarea
+                    value={rawText}
+                    spellCheck={false}
+                    onChange={(e) => setRawText(e.target.value)}
+                  />
+                  <div className="raw-actions">
+                    <button className="primary" onClick={handleApplyRaw}>
+                      구조화된 편집에 반영
+                    </button>
+                    <button onClick={() => setShowRaw(false)}>닫기</button>
+                  </div>
+                </div>
+              )}
+
+              <FieldEditor
+                fields={draftFields}
+                onChange={setDraftFields}
+                onBeforeStructuralChange={pushUndoSnapshot}
+                onCopyLine={handleCopyLine}
+                pulseSignal={pulseSignal}
+              />
+            </div>
+
+            <ClassificationPanel
+              candidates={candidates}
+              ratio={current.meta.kdc_margin_ratio}
+              lowConfidence={current.meta.kdc_low_confidence}
+              reason={current.meta.kdc_reason}
+              edition={current.meta.kdc_edition}
+              selected={draftKdcSelected}
+              detail={draftKdcDetail}
+              onSelect={handleKdcSelect}
+              onDetailChange={handleKdcDetailChange}
+            />
+          </section>
+        )}
+      </div>
+
+      {toast && <div className="toast">{toast}</div>}
+    </div>
+  )
+}
