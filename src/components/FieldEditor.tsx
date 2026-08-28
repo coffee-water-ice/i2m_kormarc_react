@@ -18,24 +18,24 @@ interface FieldEditorProps {
 }
 
 /*
- * ── 이 파일의 편집 모델: "한 행 = 완전히 자유로운 텍스트 한 줄" ──
+ * ── 이 파일의 편집 모델: "레코드 전체가 하나의 텍스트" ──
  *
- * 이전 버전들은 태그·지시기호·서브필드를 각각 별도 역할(role)로 구분해 서로 다른
- * 키보드 규칙을 적용했다(지시기호는 한 글자 치면 자동으로 다음 칸으로, 서브필드는
- * Alt+글자로 "새로 만들고" Backspace로 "통째로 지우고" 등). 문제는 이게 자유로운
- * 편집을 가로막는다는 것 — 예를 들어 Alt+글자로 만든 서브필드는 뒷부분 전체가
- * 그 서브필드에 "묶여"버려서, 식별기호($코드)만 따로 지우거나 고칠 수 없었다.
+ * 태그·지시기호·서브필드는 전부 "위치"로만 구분되고(색·굵기는 장식일 뿐), 어디든
+ * 자유롭게 클릭·선택·타이핑·삭제할 수 있다 — "지금 이 텍스트가 유효한 MRK 구조인가"는
+ * 편집 중엔 검사하지 않고 "저장" 버튼을 누르는 시점에만 검사한다(IsbnConvert.tsx).
  *
- * 그래서 구조를 완전히 뒤집었다: 편집 중에는 행 전체가 그냥 "일반 텍스트"다.
- * 태그(3자리)·지시기호(그다음 2자리, 컨트롤필드면 없음)·서브필드($코드+값 반복)는
- * 전부 "위치"로만 구분되고(색·굵기는 그 위치를 눈으로 보여주는 장식일 뿐), 어디든
- * 자유롭게 클릭·선택·타이핑·삭제할 수 있다. 그 결과 "지금 이 텍스트가 유효한 MRK
- * 구조인가"는 편집 중엔 검사하지 않고, "저장" 버튼을 누르는 시점에만 검사해서
- * 문제가 있으면 저장을 보류하고 그 행을 가리켜준다(IsbnConvert.tsx의 저장 검증).
+ * 이번 버전은 여기서 한 단계 더 나갔다: 예전엔 "행 하나 = contentEditable 하나"라
+ * 245에서 260까지 드래그로 한 번에 선택/복사하는 게 안 됐는데(각 행이 서로 다른
+ * 편집 루트라 브라우저 Selection이 행을 못 넘나든다), 이제 .field-rows 컨테이너
+ * 전체가 하나의 contentEditable이라 여러 필드에 걸친 드래그 선택·복사가 자연스럽게
+ * 된다. 다만 "필드끼리 실제로 합쳐지는" 것까지 허용하면 MRK 구조 자체가 깨지므로,
+ * 필드 경계를 넘나드는 "편집"(Backspace/Delete/타이핑/붙여넣기)만 명시적으로
+ * 막는다 — 선택·복사는 읽기 전용이라 이 차단과 무관하게 항상 자유롭다.
  *
- * DOM은 여전히 React가 아니라 직접 관리한다(caret 유지) — 다만 예전처럼
- * contenteditable="false" "섬"이 하나도 없어서(모든 게 진짜 자유 텍스트라) 이전에
- * 있었던 "섬 경계에서 캐럿이 애매해지는" 부류의 버그 자체가 구조적으로 사라졌다.
+ * DOM은 여전히 React가 아니라 직접 관리한다(행별로 innerHTML을 다시 그리고 caret을
+ * 절대 오프셋으로 복원) — 다만 편집 루트가 하나로 합쳐지면서 "지금 caret이 어느
+ * 행에 있는지"를 이벤트의 target이 아니라(합쳐진 루트 자신을 가리켜서 못 씀)
+ * Selection에서 가장 가까운 .field-row 조상을 찾아 판단한다.
  */
 
 const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
@@ -119,19 +119,12 @@ function fieldToRowText(f: MrkField): string {
  * 아님) — 저장 시 검증은 이 결과를 보고 별도로 한다.
  *
  * 절대 글자를 바꾸거나 버리면 안 된다(이 함수와 fieldToRowText는 항상 정확히 왕복해야
- * 한다) — 예전엔 지시기호에 스페이스를 치면 "빈 지시기호=\"라는 mrk 관례에 맞춰
- * 여기서 바로 백슬래시로 바꿔버렸는데, 그러면 한 번의 타이핑에 대해 이 함수가 계산한
- * 값과 fieldToRowText가 재구성한 텍스트가 서로 달라져서 — 방금 친 문자를 그대로
- * 보여주고 있던 화면(syncRowFromDom의 자체 리빌드)을, 뒤이어 도는 "바깥에서 fields가
- * 바뀌었다" 감지 이펙트가 다른 버전으로 또 한 번 덮어썼다(그 이펙트는 caret 복원까지는
- * 안 해서, 결과적으로 스페이스가 눈앞에서 백슬래시로 바뀌면서 caret도 엉뚱한 데로
- * 튀었다 — Playwright로 재현해서 찾음). 빈 지시기호(스페이스)→\ 정규화는 이제 여기서
- * 하지 않고 내보내기 시점(lib/mrk.ts의 serializeField)에서만 한다 — 편집 중엔 스페이스가
- * 스페이스로 그냥 남아있는다.
- *
- * "$" 앞에 뜬금없는 텍스트가 낀 순간도 있을 수 있는데(예: 태그를 고치는 도중 지시기호
- * 칸이 밀려서 "$"를 삼켜버린 경우) — 코드가 빈 서브필드({code:'', value:그텍스트})로
- * 보존한다. 저장 검증에서 "코드 없음"으로 걸러지긴 하지만 데이터 자체는 안 사라진다.
+ * 한다) — "$" 앞에 뜬금없는 텍스트가 낀 순간도 있을 수 있는데(예: 태그를 고치는 도중
+ * 지시기호 칸이 밀려서 "$"를 삼켜버린 경우) 코드가 빈 서브필드({code:'', value:그
+ * 텍스트})로 보존한다. 저장 검증에서 "코드 없음"으로 걸러지긴 하지만 데이터 자체는
+ * 안 사라진다. 지시기호에 남는 스페이스도 여기서 바꾸지 않는다(내보내기 시점인
+ * lib/mrk.ts의 serializeField에서만 '\'로 정리) — 편집 중 눈앞에서 글자가 바뀌는
+ * 것처럼 보이는 걸 막기 위함.
  */
 function rowTextToField(rowText: string): MrkField {
   const tag = rowText.slice(0, 3)
@@ -199,10 +192,23 @@ function setCaretOffsetInRow(root: HTMLElement, offset: number) {
   sel.addRange(range)
 }
 
+/** node에서부터 위로 올라가며 가장 가까운 .field-row 조상을 찾는다 — container 밖으로는
+ * 안 나간다. keydown/input의 e.target은 합쳐진 편집 루트 자신을 가리켜서 못 쓰기
+ * 때문에(span은 자체적으로 포커스를 못 받는다), Selection 기준으로 "지금 caret이 어느
+ * 필드에 있는지"를 직접 찾아야 한다. */
+function closestFieldRow(node: Node | null, container: HTMLElement): HTMLElement | null {
+  let el: Node | null = node
+  while (el && el !== container) {
+    if (el instanceof HTMLElement && el.classList.contains('field-row')) return el
+    el = el.parentNode
+  }
+  return null
+}
+
 /**
- * mrk_editor_prototype.html의 필드 편집 카드를 이식 — 다만 프로토타입도 칸마다 별도
- * contenteditable이라 이 정도로 자유롭게 옮겨다니며 편집하지는 못했다. 파일 상단
- * 코멘트에 전체 설계를 적어뒀다.
+ * mrk_editor_prototype.html의 필드 편집 카드를 이식 — 다만 프로토타입도 칸/행마다 별도
+ * contenteditable이라 여러 필드에 걸친 드래그 선택은 안 됐다. 파일 상단 코멘트에
+ * 전체 설계를 적어뒀다.
  */
 export default function FieldEditor({ fields, onChange, onBeforeStructuralChange, onCopyLine, pulseSignal }: FieldEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -234,9 +240,18 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
     return cb
   }
 
+  /** 지금 caret(또는 선택 시작점)이 있는 행의 인덱스. 없으면 null. */
+  function currentRowIndex(): number | null {
+    const containerEl = containerRef.current
+    if (!containerEl) return null
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return null
+    const rowEl = closestFieldRow(sel.getRangeAt(0).startContainer, containerEl)
+    return rowEl ? Number(rowEl.dataset.row) : null
+  }
+
   /** 이 행의 라이브 DOM(순수 텍스트)을 읽어 React 상태로 내보내고, 그 자리에서 다시
-   * 그려 색을 최신화한다 — caret은 절대 문자 오프셋으로 저장했다가 그대로 복원한다.
-   * 더 이상 "이 칸은 편집 금지" 섬이 없어서 예전 같은 경계 모호함이 없다. */
+   * 그려 색을 최신화한다 — caret은 절대 문자 오프셋으로 저장했다가 그대로 복원한다. */
   function syncRowFromDom(rowIdx: number) {
     const rowEl = rowRefs.current.get(rowIdx)
     if (!rowEl) return
@@ -264,7 +279,7 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
       lastSyncedRef.current.set(rowIdx, rowText)
 
       if (isPendingTarget && pendingFocus) {
-        rowEl.focus()
+        containerRef.current?.focus()
         setCaretOffsetInRow(rowEl, pendingFocus.offset)
       }
     })
@@ -300,37 +315,117 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
     }
   }
 
-  function handleRowInput(rowIdx: number) {
+  function handleContainerInput() {
+    const rowIdx = currentRowIndex()
+    if (rowIdx === null) return
     if (composingRowsRef.current.has(rowIdx)) return // 한글 등 IME 조합 중엔 손대지 않는다
     maybeSnapshot(rowIdx)
     syncRowFromDom(rowIdx)
   }
-  function handleRowCompositionEnd(rowIdx: number) {
+  function handleContainerCompositionStart() {
+    const rowIdx = currentRowIndex()
+    if (rowIdx !== null) composingRowsRef.current.add(rowIdx)
+  }
+  function handleContainerCompositionEnd() {
+    const rowIdx = currentRowIndex()
+    if (rowIdx === null) return
     composingRowsRef.current.delete(rowIdx)
     maybeSnapshot(rowIdx)
     syncRowFromDom(rowIdx)
   }
 
   // Enter = 다음 행(Shift+Enter = 이전), Alt+Enter = 줄바꿈(기본 동작 그대로 둠).
-  // Alt+글자 = "$글자" 두 글자를 caret 위치에 꽂아 넣는 편의 단축키 — 그 뒤로는 평범한
-  // 텍스트라 자유롭게 고치거나 지울 수 있다(예전처럼 "서브필드 객체"로 묶여서 한
-  // 덩어리로만 지워지는 일이 없다).
-  function handleRowKeyDown(e: React.KeyboardEvent<HTMLDivElement>, rowIdx: number) {
+  // Alt+글자 = "$글자" 두 글자를 caret 위치에 꽂아 넣는 편의 단축키.
+  //
+  // 여러 필드에 걸친 선택 상태에서 지우기/타이핑/붙여넣기는 막는다 — 필드끼리 실제로
+  // 합쳐지면 MRK 구조 자체가 깨지기 때문. 선택(그래서 드래그 복사)은 이 핸들러를
+  // 안 거치니 그대로 자유롭다. 같은 이유로, 한 필드의 맨 앞/맨 끝에서 Backspace/Delete로
+  // 옆 필드와 합쳐지려는 것도 막는다.
+  function handleContainerKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.nativeEvent.isComposing) return
+    const containerEl = containerRef.current
+    if (!containerEl) return
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return
+    const range = sel.getRangeAt(0)
+    const startRow = closestFieldRow(range.startContainer, containerEl)
+    const endRow = closestFieldRow(range.endContainer, containerEl)
+    const crossesRows = startRow !== endRow
+
     if (e.key === 'Enter') {
       if (e.altKey) return
       e.preventDefault()
-      navigateRow(rowIdx, e.shiftKey ? -1 : 1)
+      if (startRow) navigateRow(Number(startRow.dataset.row), e.shiftKey ? -1 : 1)
       return
     }
+
+    const isEditingKey =
+      e.key === 'Backspace' || e.key === 'Delete' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey)
+    if (crossesRows && isEditingKey) {
+      e.preventDefault()
+      return
+    }
+
     if (e.altKey && !e.ctrlKey && !e.metaKey && /^[a-zA-Z0-9]$/.test(e.key)) {
       e.preventDefault()
       document.execCommand('insertText', false, '$' + e.key.toLowerCase())
+      return
+    }
+
+    if (!crossesRows && sel.isCollapsed && startRow && (e.key === 'Backspace' || e.key === 'Delete')) {
+      const rowIdx = Number(startRow.dataset.row)
+      const contentEl = rowRefs.current.get(rowIdx)
+      if (contentEl) {
+        const offset = getCaretOffsetInRow(contentEl)
+        const len = stripPlaceholder(contentEl.textContent ?? '').length
+        if (e.key === 'Backspace' && offset === 0 && rowIdx > 0) {
+          e.preventDefault()
+          return
+        }
+        if (e.key === 'Delete' && offset === len && rowIdx < fields.length - 1) {
+          e.preventDefault()
+          return
+        }
+      }
     }
   }
 
+  // 여러 필드에 걸친 선택 상태로는 붙여넣기도 막는다(같은 이유). 한 필드 안이면
+  // 허용하되, 줄바꿈은 공백으로 접어서 꽂아 넣는다 — 붙여넣기로 필드가 여러 줄로
+  // 쪼개지는 걸 막기 위함(줄바꿈이 필요하면 Alt+Enter를 쓰면 된다).
+  function handleContainerPaste(e: React.ClipboardEvent<HTMLDivElement>) {
+    e.preventDefault()
+    const containerEl = containerRef.current
+    const sel = window.getSelection()
+    if (!containerEl || !sel || sel.rangeCount === 0) return
+    const range = sel.getRangeAt(0)
+    const startRow = closestFieldRow(range.startContainer, containerEl)
+    const endRow = closestFieldRow(range.endContainer, containerEl)
+    if (startRow !== endRow) return
+    const text = e.clipboardData.getData('text/plain').replace(/\r?\n/g, ' ')
+    document.execCommand('insertText', false, text)
+  }
+
+  // 경고 아이콘·행 복사 버튼(contentEditable=false 섬) 클릭이 caret 이동으로 오인되지
+  // 않게 — contenteditable 영역 안에서 버튼을 누르면 브라우저가 먼저 선택부터
+  // 옮기려 드는 경우가 있다.
+  function handleContainerMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    if ((e.target as HTMLElement).tagName === 'BUTTON') e.preventDefault()
+  }
+
   return (
-    <div className="field-rows" ref={containerRef}>
+    <div
+      className="field-rows"
+      contentEditable
+      suppressContentEditableWarning
+      ref={containerRef}
+      onInput={handleContainerInput}
+      onCompositionStart={handleContainerCompositionStart}
+      onCompositionEnd={handleContainerCompositionEnd}
+      onKeyDown={handleContainerKeyDown}
+      onPaste={handleContainerPaste}
+      onMouseDown={handleContainerMouseDown}
+    >
       {fields.map((f, rowIdx) => {
         const missing = missingSubfields(f)
         return (
@@ -338,25 +433,20 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
             key={rowIdx}
             className={'field-row' + (missing.length ? ' has-warning' : '')}
             data-tag={f.tag}
+            data-row={rowIdx}
             style={{ ['--rail-color' as string]: RAIL_COLOR[f.tag] ?? (f.kind === 'control' ? 'var(--rail-control)' : 'transparent') }}
           >
-            <div
-              className="field-row-edit"
-              contentEditable
-              suppressContentEditableWarning
-              data-row={rowIdx}
-              ref={getRowRefCallback(rowIdx)}
-              onInput={() => handleRowInput(rowIdx)}
-              onCompositionStart={() => composingRowsRef.current.add(rowIdx)}
-              onCompositionEnd={() => handleRowCompositionEnd(rowIdx)}
-              onKeyDown={(e) => handleRowKeyDown(e, rowIdx)}
-            />
+            <div className="field-row-content" data-row={rowIdx} ref={getRowRefCallback(rowIdx)} />
             {missing.length > 0 && (
-              <div className="warn-icon" data-tooltip={`필수 서브필드 누락: $${missing.join(', $')}`}>
+              <div
+                className="warn-icon"
+                contentEditable={false}
+                data-tooltip={`필수 서브필드 누락: $${missing.join(', $')}`}
+              >
                 ⚠
               </div>
             )}
-            <div className="row-actions">
+            <div className="row-actions" contentEditable={false}>
               <button
                 type="button"
                 className="row-copy"

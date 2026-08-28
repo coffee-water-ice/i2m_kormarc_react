@@ -1,11 +1,14 @@
 /* mrk_editor_prototype.html의 .field-rows/.field-row 등을 이식.
-   각 행(.field-row-edit)은 태그·지시기호·식별기호·값을 전부 담은 진짜 자유 텍스트
-   한 줄이다 — 구분은 배경 상자가 아니라 글자 색·굵기로만 한다(위치 기반으로 계산):
-   태그=분홍, 지시기호=파랑, $코드=적갈색, 값=기본 잉크색. 자세한 설계는
-   FieldEditor.tsx 상단 코멘트 참고. */
+   .field-rows 전체가 하나의 contentEditable이라(레코드 전체가 하나의 텍스트) 245~260
+   처럼 여러 필드에 걸쳐 드래그로 선택/복사할 수 있다. 각 행(.field-row-content)의
+   태그·지시기호·식별기호·값 구분은 배경 상자가 아니라 글자 색·굵기로만 한다(위치
+   기반으로 계산): 태그=분홍, 지시기호=파랑, $코드=적갈색, 값=기본 잉크색. 자세한
+   설계는 FieldEditor.tsx 상단 코멘트 참고. */
 
 .field-rows {
   padding: 6px 0 14px;
+  outline: none;
+  cursor: text;
 }
 
 .field-row {
@@ -40,27 +43,22 @@
   }
 }
 
-/* 행 전체가 하나의 caret이 흐르는 자유 텍스트 영역. */
-.field-row-edit {
+/* 행 하나의 내용 — caret이 흐르는 자유 텍스트는 이제 .field-rows 전체가 공유하고,
+   여기는 그중 한 줄만 담당한다(개별로는 더 이상 독립된 편집 루트가 아니다). */
+.field-row-content {
   flex: 1;
   min-width: 0;
   padding: 0 1px;
   padding-top: 3px;
   padding-left: 14px;
-  outline: none;
-  cursor: text;
   line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: break-word;
   caret-color: var(--tag-blue);
   border-bottom: 1px dashed transparent;
 }
-.field-row-edit:hover {
+.field-row:hover .field-row-content {
   border-bottom-color: #dfe2ea;
-}
-.field-row-edit:focus {
-  border-bottom-color: var(--tag-blue);
-  background: #f5f8ff;
 }
 
 .tok-tag {
@@ -82,12 +80,17 @@
   color: var(--ink-dim);
 }
 
+/* .warn-icon/.row-actions는 contentEditable="false" 섬이라 타이핑으론 안 지워지지만,
+   그것만으론 드래그 선택에서까지 빠지지 않는다(선택 가능 여부는 별개 속성) — 그대로
+   두면 여러 필드에 걸쳐 드래그해서 복사할 때 "⚠"/"⧉" 글자까지 섞여 들어간다.
+   user-select:none으로 이 섬들을 선택 대상에서 완전히 뺀다. */
 .warn-icon {
   flex: none;
   color: var(--accent-amber);
   font-size: 13px;
   padding-top: 3px;
   cursor: default;
+  user-select: none;
 }
 
 .row-actions {
@@ -95,9 +98,15 @@
   opacity: 0;
   padding-top: 2px;
   transition: opacity 0.1s;
+  user-select: none;
+  /* 안 보일 때는 실제 클릭도 안 먹게 한다 — opacity:0인 채로 계속 mousedown을
+     가로채서, 여러 필드에 걸친 드래그 선택의 시작점이 우연히 이 버튼 위에
+     떨어지면 선택/편집 상태가 꼬이는 문제(필드 데이터 손상까지 재현됨)가 있었다. */
+  pointer-events: none;
 }
 .field-row:hover .row-actions {
   opacity: 1;
+  pointer-events: auto;
 }
 .row-copy {
   border: none;
