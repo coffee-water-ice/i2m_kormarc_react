@@ -207,6 +207,10 @@
   opacity: 0.6;
   cursor: default;
 }
+/* .mrk보다 덜 쓰는 바이너리 다운로드라 눈에 덜 띄게(mrk_editor_prototype.html과 동일). */
+.card-actions button.mrc {
+  color: var(--ink-dim);
+}
 
 .raw-panel {
   padding: 14px 18px 16px;

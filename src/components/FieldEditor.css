@@ -1,8 +1,8 @@
-/* mrk_editor_prototype.html의 .field-rows/.field-row/.tag-badge/.subfields 등을 이식.
-   한 행(.field-row-edit)은 태그·지시기호·식별기호·값을 전부 담은 "하나의" contentEditable —
-   마우스로 245 00 $a값 전체를 드래그해서 선택/복사할 수 있어야 해서다(서로 다른
-   <input>/<textarea>로는 이게 근본적으로 불가능해서 이 구조로 바꿨다). 구분은 배경 상자가
-   아니라 글자 색·굵기로만 한다: 태그=분홍, 지시기호=파랑, $코드=적갈색, 값=기본 잉크색. */
+/* mrk_editor_prototype.html의 .field-rows/.field-row 등을 이식.
+   각 행(.field-row-edit)은 태그·지시기호·식별기호·값을 전부 담은 진짜 자유 텍스트
+   한 줄이다 — 구분은 배경 상자가 아니라 글자 색·굵기로만 한다(위치 기반으로 계산):
+   태그=분홍, 지시기호=파랑, $코드=적갈색, 값=기본 잉크색. 자세한 설계는
+   FieldEditor.tsx 상단 코멘트 참고. */
 
 .field-rows {
   padding: 6px 0 14px;
@@ -40,12 +40,13 @@
   }
 }
 
-/* 행 전체가 하나의 caret이 흐르는 영역 — 안쪽 span들의 색만 다를 뿐 하나의 텍스트다. */
+/* 행 전체가 하나의 caret이 흐르는 자유 텍스트 영역. */
 .field-row-edit {
   flex: 1;
   min-width: 0;
   padding: 0 1px;
   padding-top: 3px;
+  padding-left: 14px;
   outline: none;
   cursor: text;
   line-height: 1.6;
@@ -62,77 +63,23 @@
   background: #f5f8ff;
 }
 
-.tag-badge {
+.tok-tag {
   color: var(--tag-pink);
   font-weight: 700;
 }
-.rt-sep {
-  /* 태그 뒤 실제 mrk 서식과 같은 두 칸 공백 — CSS gap이 아니라 진짜 글자로 넣어서
-     드래그 선택 안에도 자연스럽게 포함되고, 클릭 사각지대가 안 생긴다. */
-  white-space: pre;
-}
-.ind {
+.tok-ind {
   color: var(--tag-blue);
   font-weight: 700;
 }
-.control-val {
-  color: var(--ink-dim);
-}
-
-/* $코드 — <input>이던 시절엔 ::before로 "$"를 못 그렸는데(replaced element), 이제 그냥
-   inline span이라 걱정할 필요가 없다. */
-.sf-code-wrap {
-  display: inline;
-}
-.sf-dollar {
+.tok-dollar {
   color: var(--sf-rust);
   font-weight: 700;
 }
-.sf-code {
-  color: var(--sf-rust);
-  font-weight: 700;
-}
-.sf-val {
+.tok-val {
   color: var(--ink);
 }
-
-/* ␣ 트림 / × 삭제 — contenteditable="false" 섬(rt-island)에 담겨서 드래그 선택은
-   자연스럽게 지나가지만 타이핑으로는 안 지워진다. */
-.rt-island {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-}
-.sf-trim {
-  position: relative;
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  line-height: 14px;
-  text-align: center;
-  font-size: 10px;
-  color: var(--accent-amber);
-  background: #fbeed9;
-  border: none;
-  border-radius: 3px;
-  margin: 0 3px;
-  cursor: pointer;
-  padding: 0;
-}
-.sf-del {
-  opacity: 0;
-  border: none;
-  background: none;
-  color: var(--accent-rose);
-  font-size: 12px;
-  line-height: 1;
-  padding: 0 3px;
-  margin-left: 1px;
-  cursor: pointer;
-  transition: opacity 0.1s;
-}
-.field-row:hover .sf-del {
-  opacity: 1;
+.tok-raw {
+  color: var(--ink-dim);
 }
 
 .warn-icon {

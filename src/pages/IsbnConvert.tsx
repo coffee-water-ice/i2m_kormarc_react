@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { convertIsbn } from '../api/client'
+import { convertIsbn, mrkToMarc } from '../api/client'
 import type { HistoryRecord } from '../types/history'
 import type { MrkField } from '../types/mrk'
 import { useIsbnHistory } from '../context/isbnHistory'
-import { parseMrkText, serializeRecord, extractTitle, applyKdcToFields, nextUid } from '../lib/mrk'
+import { parseMrkText, serializeRecord, extractTitle, applyKdcToFields, nextUid, missingSubfields } from '../lib/mrk'
 import FieldEditor from '../components/FieldEditor'
 import ClassificationPanel from '../components/ClassificationPanel'
 import './IsbnConvert.css'
@@ -15,6 +15,30 @@ function formatElapsed(ms: number): string {
   const min = Math.floor(totalSec / 60)
   const sec = totalSec - min * 60
   return `${min}분 ${sec.toFixed(1)}초`
+}
+
+/**
+ * 사서 편집은 편집 중엔 형식을 검사하지 않는다(자유 텍스트라 뭐든 될 수 있음) — 대신
+ * "저장" 버튼을 눌렀을 때만 검사해서, 문제가 있으면 저장을 보류하고 그 행을 가리켜준다.
+ * 첫 번째로 발견된 문제만 반환(한 번에 여러 개를 보여주면 오히려 헷갈려서).
+ */
+function findSaveBlockingIssue(fields: MrkField[]): { tag: string; reason: string } | null {
+  for (const f of fields) {
+    if (!/^\d{3}$/.test(f.tag)) {
+      return { tag: f.tag || '?', reason: '필드 번호는 숫자 3자리여야 해요.' }
+    }
+    if (f.kind === 'data') {
+      const codeless = f.subfields.find((sf) => sf.code === '')
+      if (codeless) {
+        return { tag: f.tag, reason: `식별기호($코드)가 빠진 값이 있어요: "${codeless.value}"` }
+      }
+      const missing = missingSubfields(f)
+      if (missing.length > 0) {
+        return { tag: f.tag, reason: `필수 서브필드 누락: $${missing.join(', $')}` }
+      }
+    }
+  }
+  return null
 }
 
 /**
@@ -31,6 +55,7 @@ export default function IsbnConvert() {
   const [converting, setConverting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [showRaw, setShowRaw] = useState(false)
+  const [downloadingMrc, setDownloadingMrc] = useState(false)
   const [rawText, setRawText] = useState('')
   const [toast, setToast] = useState<string | null>(null)
   // 056 후보를 고를 때마다 매번 다시 반짝이게(같은 태그를 연달아 골라도 재실행되도록)
@@ -117,9 +142,16 @@ export default function IsbnConvert() {
     setHistory((h) => h.map((r) => (r.uid === uid ? { ...r, ...patch } : r)))
   }
 
-  /** "저장" 버튼 — 지금까지의 초안을 실제 변환 내역(history)에 확정 반영한다. */
+  /** "저장" 버튼 — 지금까지의 초안을 실제 변환 내역(history)에 확정 반영한다. 저장
+   * 전에 형식을 검사해서, 문제가 있으면 저장하지 않고 그 행으로 스크롤+반짝임을 준다. */
   function handleSaveDraft() {
     if (!current) return
+    const issue = findSaveBlockingIssue(draftFields)
+    if (issue) {
+      showToast(`저장할 수 없어요 — ${issue.tag} 필드: ${issue.reason}`)
+      setPulseSignal((s) => ({ tag: issue.tag, token: (s?.token ?? 0) + 1 }))
+      return
+    }
     patchCurrent({
       fields: draftFields,
       kdcSelected: draftKdcSelected,
@@ -198,6 +230,37 @@ export default function IsbnConvert() {
     a.click()
     URL.revokeObjectURL(url)
     showToast('.mrk 파일을 내려받았어요.')
+  }
+
+  /** 진짜 바이너리 MARC(.mrc, ISO 2709) 다운로드 — 백엔드의 /api/mrk-to-marc로 지금
+   * 화면에 있는 mrk 텍스트(finalMrk, 저장 여부와 무관하게 draft 그대로)를 보내서 그
+   * 자리에서 새로 인코딩받는다. 클라이언트엔 MARC 인코더가 없어서(직접 구현하면
+   * ISO 2709 포맷을 통째로 새로 짜야 함 — pymarc가 이미 하는 일을 중복 구현하는 셈)
+   * 백엔드에 위임했다 — 그래서 사서 편집에서 고친 내용도 그대로 반영된다. */
+  async function handleDownloadMrc() {
+    if (!current) return
+    setDownloadingMrc(true)
+    const result = await mrkToMarc(finalMrk)
+    setDownloadingMrc(false)
+    if (!result.marcBytesB64) {
+      showToast(`.mrc 인코딩에 실패했어요 — ${result.error ?? '알 수 없는 오류'}`)
+      return
+    }
+    const binary = atob(result.marcBytesB64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    const blob = new Blob([bytes], { type: 'application/marc' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${current.isbn}.mrc`
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast(
+      result.error
+        ? `.mrc 파일을 내려받았어요 — 일부 줄은 인식하지 못했어요: ${result.error}`
+        : '.mrc 파일을 내려받았어요.',
+    )
   }
 
   function handleCopyAll() {
@@ -296,6 +359,14 @@ export default function IsbnConvert() {
                   </button>
                   <button onClick={handleCopyAll}>⧉ 전체 복사</button>
                   <button onClick={handleDownload}>↓ .mrk</button>
+                  <button
+                    className="mrc"
+                    onClick={handleDownloadMrc}
+                    disabled={downloadingMrc}
+                    data-tooltip="진짜 바이너리 MARC(ISO 2709) — 사서 편집에서 고친 내용도 반영해서 새로 인코딩"
+                  >
+                    {downloadingMrc ? '인코딩 중...' : '↓ .mrc'}
+                  </button>
                 </div>
               </div>
 

@@ -79,6 +79,35 @@ export async function convertIsbn(
   }
 }
 
+export interface MrkToMarcResult {
+  marcBytesB64: string
+  error: string | null
+}
+
+/**
+ * mrk 텍스트를 진짜 바이너리 MARC(.mrc)로 (다시) 인코딩한다 — /api/convert가 변환
+ * 시점에 한 번 내려주는 marc_bytes_b64는 그 시점 그대로라 이후 사서 편집 내용을
+ * 반영 못 하는데, 이 함수는 "지금 화면에 있는 mrk 텍스트 그대로"를 보내 새로 인코딩
+ * 받는다(백엔드의 /api/mrk-to-marc, core/marc_builder.mrk_str_to_field 재사용).
+ */
+export async function mrkToMarc(mrkText: string): Promise<MrkToMarcResult> {
+  try {
+    const res = await fetch(url('/api/mrk-to-marc'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mrk_text: mrkText }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      throw new Error(body?.detail ?? `HTTP ${res.status}`)
+    }
+    const data = await res.json()
+    return { marcBytesB64: data.marc_bytes_b64 ?? '', error: data.error ?? null }
+  } catch (e) {
+    return { marcBytesB64: '', error: e instanceof Error ? e.message : '.mrc 인코딩 실패' }
+  }
+}
+
 export interface BatchJob {
   isbn: string
   regMark?: string
