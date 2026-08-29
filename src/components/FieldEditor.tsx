@@ -108,8 +108,12 @@ function buildRowHtml(rowText: string): string {
  * 사용자가 실제로 입력한 글자를 그대로 내보낸다(빈 값일 때만 '\'로 채운다). */
 function fieldToRowText(f: MrkField): string {
   if (f.kind === 'control') return f.tag + f.value
-  const ind1 = f.ind1 === '' ? '\\' : f.ind1
-  const ind2 = f.ind2 === '' ? '\\' : f.ind2
+  // mrk 원문(parseMrkText)에서 빈 지시기호는 "\"로 들어온다 — 그걸 편집 화면에
+  // 그대로 보여주면 사서 입장에선 뜬금없는 백슬래시로 보인다. 화면에는 실제로
+  // 스페이스를 친 것처럼 빈 칸으로 보여주고, 내보낼 때만 lib/mrk.ts의
+  // serializeField가 다시 "\"로 정리한다(그 반대 방향 정리).
+  const ind1 = !f.ind1 || f.ind1 === '\\' ? ' ' : f.ind1
+  const ind2 = !f.ind2 || f.ind2 === '\\' ? ' ' : f.ind2
   const sf = f.subfields.map((s) => (s.code ? `$${s.code}${s.value}` : s.value)).join('')
   return f.tag + ind1 + ind2 + sf
 }
