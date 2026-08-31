@@ -45,7 +45,10 @@ export default function ClassificationPanel({
   }
 
   const topProb = Math.max(...candidates.map((c) => c.prob)) || 1
-  const finalKdc = `${selected}${detail.trim()}`
+  // 모델은 강(2자리)까지만 판단한다 — 세목 칸이 비어 있으면 '0'을 기본으로 보여주고
+  // 적용한다(직접 입력하면 그 값으로 바뀜). candidates 자체(후보 목록·확률)는 그대로다.
+  const effectiveDetail = detail.trim() || '0'
+  const finalKdc = `${selected}${effectiveDetail}`
 
   return (
     <aside className="class-panel">
@@ -62,7 +65,7 @@ export default function ClassificationPanel({
         {candidates.map((c, i) => (
           <div className="class-bar-row" key={c.kdc}>
             <div className="class-bar-label">
-              <span>{kdcLabel(c.kdc)}</span>
+              <span>{kdcLabel(`${c.kdc}${effectiveDetail}`)}</span>
               <span>{(c.prob * 100).toFixed(1)}%</span>
             </div>
             <div className="class-bar-track">
@@ -88,7 +91,7 @@ export default function ClassificationPanel({
               checked={selected === c.kdc}
               onChange={() => onSelect(c.kdc)}
             />
-            {kdcLabel(c.kdc)}
+            {kdcLabel(`${c.kdc}${effectiveDetail}`)}
           </label>
         ))}
       </div>

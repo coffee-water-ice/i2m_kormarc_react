@@ -308,6 +308,21 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
     setPendingFocus({ row: target, offset: 0 })
   }
 
+  /** rowIdx 바로 다음에 빈 필드를 하나 끼워 넣고 그 자리로 커서를 옮긴다(Alt+Enter로
+   * 새 태그를 시작할 때 씀). kind:'control'에 value:''를 쓰는 이유는 fieldToRowText가
+   * 그 경우 순수 빈 문자열을 내보내기 때문 — data 필드였다면 빈 지시기호가 자동으로
+   * 스페이스 두 칸을 채워서(fieldToRowText) 태그를 치는 순간 그 스페이스들 앞에
+   * 끼어 들어가 "700  " 같은 잘못된 모양이 된다. 실제 kind는 사용자가 태그를 치는
+   * 순간 rowTextToField가 그 글자로 새로 판정하므로 시작값은 중요하지 않다. */
+  function insertFieldAfter(rowIdx: number) {
+    const blank: MrkField = { tag: '', kind: 'control', value: '' }
+    const next = [...fields]
+    next.splice(rowIdx + 1, 0, blank)
+    onBeforeStructuralChange?.()
+    onChange(next)
+    setPendingFocus({ row: rowIdx + 1, offset: 0 })
+  }
+
   /** 타이핑이 한동안(800ms) 없다가 다시 시작될 때만 되돌리기 스냅샷을 남긴다 — 매
    * 글자마다 남기면 한 단어 지우는 데도 여러 번 Ctrl+Z를 눌러야 해서 정신없다. */
   function maybeSnapshot(rowIdx: number) {
@@ -338,13 +353,17 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
     syncRowFromDom(rowIdx)
   }
 
-  // Enter = 다음 행(Shift+Enter = 이전), Alt+Enter = 줄바꿈(기본 동작 그대로 둠).
+  // Enter = 다음 행(Shift+Enter = 이전).
+  // Alt+Enter = 커서가 그 필드의 맨 끝이면 "새 필드를 하나 더 만든다"(빈 행을 끼워
+  // 넣고 그 자리로 이동 — 바로 이어서 태그를 칠 수 있음). 필드 중간이면 예전 그대로
+  // 값 안에 줄바꿈을 하나 꽂아 넣는다(serializeField가 내보낼 때 공백으로 접어준다).
   // Alt+글자 = "$글자" 두 글자를 caret 위치에 꽂아 넣는 편의 단축키.
   //
   // 여러 필드에 걸친 선택 상태에서 지우기/타이핑/붙여넣기는 막는다 — 필드끼리 실제로
   // 합쳐지면 MRK 구조 자체가 깨지기 때문. 선택(그래서 드래그 복사)은 이 핸들러를
   // 안 거치니 그대로 자유롭다. 같은 이유로, 한 필드의 맨 앞/맨 끝에서 Backspace/Delete로
-  // 옆 필드와 합쳐지려는 것도 막는다.
+  // 옆 필드와 합쳐지려는 것도 막는다 — 다만 그 필드가 완전히 비어 있으면(Alt+Enter로
+  // 만들었다가 그냥 지우고 싶은 경우) Backspace가 그 빈 행 자체를 지워준다.
   function handleContainerKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.nativeEvent.isComposing) return
     const containerEl = containerRef.current
@@ -357,7 +376,18 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
     const crossesRows = startRow !== endRow
 
     if (e.key === 'Enter') {
-      if (e.altKey) return
+      if (e.altKey) {
+        if (e.ctrlKey || e.metaKey || !sel.isCollapsed || !startRow) return
+        const rowIdx = Number(startRow.dataset.row)
+        const contentEl = rowRefs.current.get(rowIdx)
+        if (!contentEl) return
+        const offset = getCaretOffsetInRow(contentEl)
+        const len = stripPlaceholder(contentEl.textContent ?? '').length
+        if (offset !== len) return // 필드 중간 — 기존 동작(값 안에 줄바꿈) 그대로 둠
+        e.preventDefault()
+        insertFieldAfter(rowIdx)
+        return
+      }
       e.preventDefault()
       if (startRow) navigateRow(Number(startRow.dataset.row), e.shiftKey ? -1 : 1)
       return
@@ -384,6 +414,16 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
         const len = stripPlaceholder(contentEl.textContent ?? '').length
         if (e.key === 'Backspace' && offset === 0 && rowIdx > 0) {
           e.preventDefault()
+          if (len === 0) {
+            // 완전히 빈 행이면 옆 필드와 합칠 내용 자체가 없다 — 그 행을 지우고
+            // 이전 필드 끝으로 이동한다(Alt+Enter로 새 필드를 만들었다가 취소하는
+            // 유일한 방법).
+            const prevRowIdx = rowIdx - 1
+            const prevLen = stripPlaceholder(rowRefs.current.get(prevRowIdx)?.textContent ?? '').length
+            onBeforeStructuralChange?.()
+            onChange(fields.filter((_, i) => i !== rowIdx))
+            setPendingFocus({ row: prevRowIdx, offset: prevLen })
+          }
           return
         }
         if (e.key === 'Delete' && offset === len && rowIdx < fields.length - 1) {

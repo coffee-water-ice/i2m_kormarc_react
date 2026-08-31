@@ -86,7 +86,10 @@ export default function App() {
                       onClick={() => selectRecord(rec.uid)}
                     >
                       <div className="hi-title">
-                        {rec.edited && <span className="edited-dot" data-tooltip="원본에서 수정됨" />}
+                        {/* edited는 "저장을 한 번이라도 눌렀는지"를 뜻한다(IsbnConvert.tsx의
+                            handleSaveDraft에서만 true가 됨) — 아직 한 번도 저장 안 한
+                            항목을 눈에 띄게 표시해서 사서가 놓치지 않게 한다. */}
+                        {!rec.edited && <span className="unsaved-dot" data-tooltip="아직 저장하지 않음" />}
                         {rec.title}
                       </div>
                       <div className="hi-meta">{rec.isbn}</div>

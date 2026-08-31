@@ -180,15 +180,21 @@ export default function IsbnConvert() {
     const fields = parseMrkText(result.mrk_text ?? '')
     const meta = result.meta ?? {}
     const candidates = meta.kdc_candidates ?? []
+    const kdcSelected = candidates[0]?.kdc ?? ''
+    // 모델은 강(2자리)까지만 판단한다(로직은 그대로) — 화면(사서 편집 + 분류 패널)에는
+    // 세목 '0'을 기본으로 붙여 보여준다. 사서가 직접 세목을 입력하면 그 값으로 바뀐다
+    // (handleKdcDetailChange). 후보가 없으면(056 미생성) 그대로 둔다.
+    const kdcDetail = '0'
+    const initialFields = kdcSelected ? applyKdcToFields(fields, `${kdcSelected}${kdcDetail}`) : fields
     const rec: HistoryRecord = {
       uid: nextUid(),
       isbn: result.isbn,
       title: extractTitle(fields),
       meta,
-      fields,
+      fields: initialFields,
       edited: false,
-      kdcSelected: candidates[0]?.kdc ?? '',
-      kdcDetail: '',
+      kdcSelected,
+      kdcDetail,
     }
     setHistory((h) => [...h, rec])
     setCurrentUid(rec.uid)
@@ -200,9 +206,11 @@ export default function IsbnConvert() {
   // 모두 "지금 화면에 보이는 대로"를 내보내야 자연스럽다(저장 여부와 무관하게).
   const finalMrk = serializeRecord(draftFields)
 
-  /** 라디오 선택/세목 입력 결과를 draft의 056 $a에 즉시 반영(저장 전까지는 초안일 뿐). */
+  /** 라디오 선택/세목 입력 결과를 draft의 056 $a에 즉시 반영(저장 전까지는 초안일 뿐).
+   * 세목 칸이 비어 있으면(사용자가 지웠거나) '0'을 기본값으로 쓴다 — 강(2자리)만
+   * 있는 완성 안 된 분류기호를 그대로 적용하지 않기 위함. */
   function pushKdcToFields(selected: string, detail: string) {
-    const finalKdc = `${selected}${detail.trim()}`
+    const finalKdc = `${selected}${detail.trim() || '0'}`
     setDraftKdcSelected(selected)
     setDraftKdcDetail(detail)
     setDraftFields((f) => applyKdcToFields(f, finalKdc))

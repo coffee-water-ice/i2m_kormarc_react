@@ -40,7 +40,11 @@ export function parseMrkText(text: string): MrkField[] {
     const re = /\$(.)([^$]*)/g
     let mm: RegExpExecArray | null
     while ((mm = re.exec(sfPart))) {
-      subfields.push({ code: mm[1], value: mm[2] })
+      // 245/246/500/700/900 등 일부 필드는 백엔드가 "$a 값"처럼 코드 바로 뒤에
+      // 공백을 붙여서 내려준다(020/041/260/300/546/950 등은 원래 안 그럼) — mrk
+      // 관례상 "$코드값"에 코드와 값 사이 공백이 없어야 하므로 여기서 한 번만
+      // 걷어낸다. 값 중간·끝의 공백(예: "서울 :")은 실제 내용이라 건드리지 않는다.
+      subfields.push({ code: mm[1], value: mm[2].replace(/^\s+/, '') })
     }
     fields.push({ tag, kind: 'data', ind1, ind2, subfields })
   }
