@@ -112,8 +112,18 @@ function fieldToRowText(f: MrkField): string {
   // 그대로 보여주면 사서 입장에선 뜬금없는 백슬래시로 보인다. 화면에는 실제로
   // 스페이스를 친 것처럼 빈 칸으로 보여주고, 내보낼 때만 lib/mrk.ts의
   // serializeField가 다시 "\"로 정리한다(그 반대 방향 정리).
-  const ind1 = !f.ind1 || f.ind1 === '\\' ? ' ' : f.ind1
-  const ind2 = !f.ind2 || f.ind2 === '\\' ? ' ' : f.ind2
+  //
+  // 반드시 "\"일 때만 스페이스로 바꾼다 — 빈 문자열("")일 때는 절대 바꾸면 안 된다.
+  // 빈 문자열은 rowTextToField가 "아직 그 자리까지 안 쳤다"는 뜻으로만 만든다(태그를
+  // 새로 만들어서 "7"까지만 쳤을 때 등). 여기서 그걸 스페이스로 채우면 아직 3자리도
+  // 안 된 태그 뒤에 스페이스 2칸이 몰래 끼어들어 rowTextToField(rowText)를 다시
+  // fieldToRowText에 넣었을 때 원래 글자 수와 달라지고("7" → "7  "), 그 차이 때문에
+  // "이미 동기화된 행"으로 착각 못 하고 캐럿 복원 없이 다시 그려버려 캐럿이 맨 앞으로
+  // 튕기는 버그가 났다(타이핑이 거꾸로 되는 것처럼 보이고 Backspace도 매번 "행 맨 앞"
+  // 취급돼서 막혔던 원인). 실제 백엔드 데이터의 빈 지시기호는 항상 "\"로 들어오지
+  // 빈 문자열로 오지 않으므로, 이 조건으로 좁혀도 원래 기능은 그대로다.
+  const ind1 = f.ind1 === '\\' ? ' ' : f.ind1
+  const ind2 = f.ind2 === '\\' ? ' ' : f.ind2
   const sf = f.subfields.map((s) => (s.code ? `$${s.code}${s.value}` : s.value)).join('')
   return f.tag + ind1 + ind2 + sf
 }
