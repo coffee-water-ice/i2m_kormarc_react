@@ -93,6 +93,37 @@ export default function EvalSystem() {
         — 2025년 원본 코드 비교는 화면·로직이 분리돼 있지 않아 스트림릿 전용으로 계속 남아있습니다.
       </p>
 
+      <p className="eval-caption">
+        ⚠️ 실제 외부 API(알라딘/OpenAI/KPIPA/행안부 등)를 호출하므로 건수가 많으면 시간이 오래 걸리고 실제 API
+        사용량(비용)이 발생합니다.
+      </p>
+
+      {backendDown && (
+        <div className="status-banner error eval-preflight">
+          <div>⛔ 백엔드에 연결할 수 없습니다 — {health?.detail}</div>
+          <button type="button" onClick={handleRecheck} disabled={checking}>
+            {checking ? '확인 중...' : '🔄 다시 확인'}
+          </button>
+        </div>
+      )}
+      {!backendDown && openaiBlocked && (
+        <div className="status-banner error eval-preflight">
+          <div>
+            ⛔ OpenAI 호출 불가 — 지금 실행하면 결과를 쓸 수 없습니다.
+            <br />
+            {openaiCached?.detail}
+            <br />
+            653이 생성되지 않고, 653을 입력으로 쓰는 056의 정확도가 함께 떨어집니다.
+          </div>
+          <button type="button" onClick={handleRecheck} disabled={checking}>
+            {checking ? '확인 중...' : '🔄 다시 확인'}
+          </button>
+        </div>
+      )}
+      {!preflightBlocked && openaiCached && (
+        <p className="eval-caption ok">✅ OpenAI 실호출 점검 통과 — 실행 직전과 실행 중 25건마다 다시 확인합니다.</p>
+      )}
+
       {run.status === 'idle' && run.resumable && (
         <div className="eval-banner">
           <span>
@@ -136,37 +167,6 @@ export default function EvalSystem() {
           </button>
         )}
       </div>
-
-      <p className="eval-caption">
-        ⚠️ 실제 외부 API(알라딘/OpenAI/KPIPA/행안부 등)를 호출하므로 건수가 많으면 시간이 오래 걸리고 실제 API
-        사용량(비용)이 발생합니다.
-      </p>
-
-      {backendDown && (
-        <div className="status-banner error eval-preflight">
-          <div>⛔ 백엔드에 연결할 수 없습니다 — {health?.detail}</div>
-          <button type="button" onClick={handleRecheck} disabled={checking}>
-            {checking ? '확인 중...' : '🔄 다시 확인'}
-          </button>
-        </div>
-      )}
-      {!backendDown && openaiBlocked && (
-        <div className="status-banner error eval-preflight">
-          <div>
-            ⛔ OpenAI 호출 불가 — 지금 실행하면 결과를 쓸 수 없습니다.
-            <br />
-            {openaiCached?.detail}
-            <br />
-            653이 생성되지 않고, 653을 입력으로 쓰는 056의 정확도가 함께 떨어집니다.
-          </div>
-          <button type="button" onClick={handleRecheck} disabled={checking}>
-            {checking ? '확인 중...' : '🔄 다시 확인'}
-          </button>
-        </div>
-      )}
-      {!preflightBlocked && openaiCached && (
-        <p className="eval-caption ok">✅ OpenAI 실호출 점검 통과 — 실행 직전과 실행 중 25건마다 다시 확인합니다.</p>
-      )}
 
       {(running || paused) && run.total > 0 && (
         <div className="eval-progress">
