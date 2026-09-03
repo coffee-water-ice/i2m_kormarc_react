@@ -88,8 +88,9 @@ export default function EvalSystem() {
     <div className="eval-page">
       <h1>평가시스템</h1>
       <p className="eval-sub">
-        ISBN을 일괄 변환해서 채점용 CSV를 만듭니다. <b>고도화 I2M</b>(2026 파이프라인)만 여기서 실행할 수 있어요 — 2025년
-        원본 코드 비교는 화면·로직이 분리돼 있지 않아 스트림릿 전용으로 계속 남아있습니다.
+        ISBN을 일괄 변환해서 채점용 CSV를 만듭니다. <b>고도화 I2M</b>(2026 파이프라인)만 여기서 실행할 수 있어요
+        <br />
+        — 2025년 원본 코드 비교는 화면·로직이 분리돼 있지 않아 스트림릿 전용으로 계속 남아있습니다.
       </p>
 
       {run.status === 'idle' && run.resumable && (
@@ -119,6 +120,23 @@ export default function EvalSystem() {
         />
       </div>
       {rawText.trim() !== '' && <p className="eval-count">평가 대상: {isbns.length}건 (중복 제거 후)</p>}
+
+      <div className="eval-run-row">
+        <button type="button" className="btn-primary" onClick={handleRun} disabled={isbns.length === 0 || preflightBlocked || running}>
+          생성 실행
+        </button>
+        {running && (
+          <button type="button" onClick={() => run.pause()}>
+            일시정지
+          </button>
+        )}
+        {paused && (
+          <button type="button" className="btn-primary" onClick={() => run.start(isbns)}>
+            재개
+          </button>
+        )}
+      </div>
+
       <p className="eval-caption">
         ⚠️ 실제 외부 API(알라딘/OpenAI/KPIPA/행안부 등)를 호출하므로 건수가 많으면 시간이 오래 걸리고 실제 API
         사용량(비용)이 발생합니다.
@@ -149,22 +167,6 @@ export default function EvalSystem() {
       {!preflightBlocked && openaiCached && (
         <p className="eval-caption ok">✅ OpenAI 실호출 점검 통과 — 실행 직전과 실행 중 25건마다 다시 확인합니다.</p>
       )}
-
-      <div className="eval-run-row">
-        <button type="button" className="btn-primary" onClick={handleRun} disabled={isbns.length === 0 || preflightBlocked || running}>
-          생성 실행
-        </button>
-        {running && (
-          <button type="button" onClick={() => run.pause()}>
-            일시정지
-          </button>
-        )}
-        {paused && (
-          <button type="button" className="btn-primary" onClick={() => run.start(isbns)}>
-            재개
-          </button>
-        )}
-      </div>
 
       {(running || paused) && run.total > 0 && (
         <div className="eval-progress">
