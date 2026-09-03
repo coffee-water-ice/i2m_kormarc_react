@@ -54,6 +54,9 @@
 }
 
 /* ── ISBN 입력 ── */
+.eval-input-row {
+  margin-top: 22px;
+}
 .eval-input-row textarea {
   width: 100%;
   font-family: var(--font-mono);
