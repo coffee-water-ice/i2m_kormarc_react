@@ -8,7 +8,7 @@
  * 환경변수로 실제 백엔드 주소를 주입할 예정(.env.production 등, 아직 미설정).
  */
 
-import type { ConvertResult, BatchResult, HealthStatus } from '../types/api'
+import type { ConvertResult, BatchResult, HealthStatus, OpenAiLiveStatus } from '../types/api'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
@@ -35,6 +35,25 @@ export async function checkBackendHealth(): Promise<HealthStatus> {
       version: null,
       secrets_configured: null,
       openai_live: null,
+    }
+  }
+}
+
+/**
+ * OpenAI 실호출 가능 여부를 캐시 무시하고 강제로 다시 확인한다(core/llm_health.py의
+ * force=True와 동일 경로) — 평가시스템이 25건마다 크레딧 소진 여부를 다시 점검할 때 쓴다.
+ * /health의 openai_live는 최대 1시간 캐시라 배치 실행 중간의 크레딧 소진을 못 잡는다.
+ */
+export async function recheckOpenaiLive(): Promise<OpenAiLiveStatus> {
+  try {
+    const res = await fetch(url('/api/openai/recheck'), { method: 'POST' })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  } catch (e) {
+    return {
+      ok: false,
+      code: 'check_failed',
+      detail: e instanceof Error ? `점검 요청 실패: ${e.message}` : '점검 요청 실패',
     }
   }
 }

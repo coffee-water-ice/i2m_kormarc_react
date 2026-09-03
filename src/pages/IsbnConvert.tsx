@@ -4,18 +4,10 @@ import type { HistoryRecord } from '../types/history'
 import type { MrkField } from '../types/mrk'
 import { useIsbnHistory } from '../context/isbnHistory'
 import { parseMrkText, serializeRecord, extractTitle, applyKdcToFields, nextUid, missingSubfields } from '../lib/mrk'
+import { formatElapsed } from '../lib/format'
 import FieldEditor from '../components/FieldEditor'
 import ClassificationPanel from '../components/ClassificationPanel'
 import './IsbnConvert.css'
-
-/** ms를 "N분 M.M초"(60초 이상일 때만 분을 붙임) / "M.M초"로 표시. */
-function formatElapsed(ms: number): string {
-  const totalSec = ms / 1000
-  if (totalSec < 60) return `${totalSec.toFixed(1)}초`
-  const min = Math.floor(totalSec / 60)
-  const sec = totalSec - min * 60
-  return `${min}분 ${sec.toFixed(1)}초`
-}
 
 /**
  * 사서 편집은 편집 중엔 형식을 검사하지 않는다(자유 텍스트라 뭐든 될 수 있음) — 대신

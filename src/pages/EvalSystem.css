@@ -1,0 +1,300 @@
+/* pages/3_평가시스템.py의 배치 평가 화면 이식. IsbnConvert.css와 같은 톤/토큰을
+   쓰지만(다른 페이지 CSS를 import하지 않는 이 프로젝트 관례상) 클래스는 이 페이지
+   전용으로 새로 둔다. */
+
+.eval-page {
+  min-width: 0;
+  max-width: 720px;
+}
+.eval-page h1 {
+  font-size: 18px;
+  color: var(--text-light);
+  margin: 0 0 6px;
+}
+.eval-sub {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+.eval-sub b {
+  color: var(--text-light);
+}
+
+/* ── 재개 배너 ── */
+.eval-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--accent-emerald-bg);
+  border: 1px solid #1f4a37;
+  color: var(--accent-emerald);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.eval-banner-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.eval-banner-actions button {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  border-radius: 7px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border: 1px solid #1f4a37;
+  background: transparent;
+  color: var(--accent-emerald);
+}
+
+/* ── ISBN 입력 ── */
+.eval-input-row textarea {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-dark);
+  color: var(--text-light);
+  border-radius: 8px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.eval-input-row textarea:disabled {
+  opacity: 0.6;
+}
+.eval-count {
+  font-size: 12px;
+  color: var(--tag-blue);
+  margin: 8px 0 0;
+}
+.eval-caption {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+.eval-caption.ok {
+  color: var(--accent-emerald);
+}
+.eval-caption.warn {
+  color: var(--accent-amber);
+}
+
+/* ── 사전 점검 배너(page-local status-banner) ── */
+.status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--accent-emerald-bg);
+  color: var(--accent-emerald);
+  border: 1px solid #1f4a37;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  margin-top: 14px;
+}
+.status-banner.error {
+  background: #2c1520;
+  color: var(--accent-rose);
+  border-color: #4a1f2c;
+}
+.eval-preflight div {
+  line-height: 1.6;
+}
+.eval-preflight button {
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  border-radius: 7px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border: 1px solid #4a1f2c;
+  background: transparent;
+  color: var(--accent-rose);
+}
+.eval-preflight button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── 실행 버튼/진행률 ── */
+.eval-run-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.btn-primary {
+  background: var(--accent-rose);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.eval-run-row button:not(.btn-primary) {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  background: var(--panel-bg);
+  color: var(--text-light);
+  border: 1px solid var(--border-dark);
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.eval-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.eval-progress-track {
+  flex: 1;
+  height: 8px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-dark);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.eval-progress-fill {
+  height: 100%;
+  background: var(--accent-rose);
+  transition: width 0.2s ease;
+}
+
+/* ── 결과 요약 ── */
+.eval-summary {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.eval-summary .status-banner {
+  margin-top: 0;
+  justify-content: flex-start;
+}
+.eval-details {
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-dark);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.eval-details summary {
+  cursor: pointer;
+  color: var(--text-light);
+}
+.eval-details.warn summary {
+  color: var(--accent-amber);
+}
+.eval-details p {
+  margin: 8px 0 0;
+  line-height: 1.6;
+  word-break: break-all;
+}
+.eval-summary > .btn-primary {
+  width: fit-content;
+}
+
+/* ── 저장된 실행 결과(체크포인트 목록) ── */
+.eval-ckpt-list {
+  margin-top: 24px;
+  border-top: 1px solid var(--border-dark);
+  padding-top: 14px;
+}
+.eval-ckpt-toggle {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-light);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.eval-ckpt-body {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.eval-ckpt-empty {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.eval-ckpt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-dark);
+  border-radius: 8px;
+  padding: 10px 12px;
+  flex-wrap: wrap;
+}
+.eval-ckpt-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+}
+.eval-ckpt-count {
+  color: var(--text-light);
+  font-weight: 600;
+}
+.eval-ckpt-date {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.eval-ckpt-actions {
+  display: flex;
+  gap: 6px;
+}
+.eval-ckpt-actions button {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  background: var(--shell-bg2);
+  color: var(--text-light);
+  border: 1px solid var(--border-dark);
+  border-radius: 7px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.eval-ckpt-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.eval-ckpt-actions button.danger {
+  color: var(--accent-rose);
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1c1f2b;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  z-index: 50;
+}

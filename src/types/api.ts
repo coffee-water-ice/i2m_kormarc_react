@@ -34,6 +34,11 @@ export interface ConvertMeta {
   elapsed_ms?: number
   token_usage?: TokenUsage
   gpt_called?: boolean
+  // 필드 단계별 소요시간(ms)/토큰 — 키는 app.py의 _step() 호출명과 동일
+  // ("020","490_830","041_546","245","246_500_700_710_900","260","300","653","056").
+  // 평가시스템 CSV의 EVAL_PERF_HEADERS가 이 두 필드에서 값을 가져온다.
+  field_elapsed_ms?: Record<string, number>
+  field_tokens?: Record<string, number>
 
   kdc_candidates?: KdcCandidate[]
   kdc_low_confidence?: boolean
