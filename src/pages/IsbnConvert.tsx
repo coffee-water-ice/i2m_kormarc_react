@@ -235,13 +235,14 @@ export default function IsbnConvert() {
   }
 
   // 049(소장사항/등록번호) — kdcSelected/kdcDetail과 달리 별도 draft 상태를 안 둔다.
-  // $I 값 하나뿐이라 draftFields 자체가 유일한 출처면 충분하고(있으면 그 필드에서
-  // 바로 읽고, 없으면 빈 문자열), applyHoldingsRegToFields가 타이핑마다 draftFields의
-  // 049를 직접 갱신한다(lib/mrk.ts 코멘트 참고 — 950 다음 위치·지시기호/코드 고정).
+  // $l(소문자 엘) 값 하나뿐이라 draftFields 자체가 유일한 출처면 충분하고(있으면 그
+  // 필드에서 바로 읽고, 없으면 빈 문자열), applyHoldingsRegToFields가 타이핑마다
+  // draftFields의 049를 직접 갱신한다(lib/mrk.ts 코멘트 참고 — 950 다음 위치·지시기호/
+  // 코드 고정).
   const holdings049 = draftFields.find(
     (f): f is Extract<MrkField, { kind: 'data' }> => f.kind === 'data' && f.tag === '049',
   )
-  const holdingsRegValue = holdings049?.subfields.find((sf) => sf.code === 'I')?.value ?? ''
+  const holdingsRegValue = holdings049?.subfields.find((sf) => sf.code === 'l')?.value ?? ''
 
   function handleHoldingsRegChange(value: string) {
     setDraftFields((f) => applyHoldingsRegToFields(f, value))

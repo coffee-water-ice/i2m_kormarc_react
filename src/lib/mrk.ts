@@ -185,8 +185,9 @@ export function applyKdcToFields(fields: MrkField[], kdc: string): MrkField[] {
  * 직접 입력해야 하는 값이라(다른 필드처럼 백엔드가 만들어주지 않음) HoldingsPanel의
  * 입력창이 매 타이핑마다 이 함수로 draftFields를 갱신한다. regNo가 비어 있으면(전부
  * 지웠으면) 기존 049 필드를 아예 없앤다 — 선택 입력이라 안 쓰면 필드 자체가 없어야
- * 하기 때문. 지시기호는 '0'(첫 번째)·' '(두 번째, 빈칸)로, 서브필드 코드는 '$I'로
- * 고정한다(요청 사양). 049가 아직 없을 때 새로 만드는 경우에만 950 바로 다음 자리에
+ * 하기 때문. 지시기호는 '0'(첫 번째)·' '(두 번째, 빈칸)로, 서브필드 코드는 '$l'
+ * (소문자 엘 — 대문자 아이 아님, 실제 표기 확인 후 정정됨)로 고정한다(요청 사양).
+ * 049가 아직 없을 때 새로 만드는 경우에만 950 바로 다음 자리에
  * 끼워 넣는다(950이 없으면 맨 끝) — 태그 번호 정렬(parseMrkText의 sort)과 무관하게
  * "언제나 950 다음"이어야 한다는 화면 위치 요구사항 때문에 여기서 직접 다룬다. 이미
  * 049가 있으면(사서가 FieldEditor에서 직접 옮겨놨을 수도 있으니) 값만 갱신하고 위치는
@@ -204,7 +205,7 @@ export function applyHoldingsRegToFields(fields: MrkField[], regNo: string): Mrk
     kind: 'data',
     ind1: '0',
     ind2: ' ',
-    subfields: [{ code: 'I', value: trimmed }],
+    subfields: [{ code: 'l', value: trimmed }],
   }
 
   if (idx049 !== -1) {
