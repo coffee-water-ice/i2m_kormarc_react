@@ -59,10 +59,18 @@ interface RowToken {
   cls: 'tok-tag' | 'tok-ind' | 'tok-dollar' | 'tok-val' | 'tok-raw'
 }
 
-/** 순수 텍스트 한 줄을 위치 규칙(태그 3자리 → [지시기호 2자리] → $코드+값 반복)에 따라
+/** 순수 텍스트 한 줄을 위치 규칙(태그 3자리 → [지시기호 2자리] → ▼코드+값 반복)에 따라
  * 색칠용 토큰으로 나눈다. 형식이 아무리 어긋나 있어도(편집 중이라 당연히 그럴 수 있다)
  * 절대 던지지 않고 "그냥 이런 모양이겠거니" 하고 최대한 그럴듯하게 나눈다 — 진짜 검증은
- * 저장 시점에 따로 한다. */
+ * 저장 시점에 따로 한다.
+ *
+ * 식별기호 구분자는 "▼"(국립중앙도서관 표시 관례)를 그대로 편집 화면의 실제 문자로
+ * 쓴다 — 진짜 MARC 바이너리 구분자(0x1F, Unit Separator)는 눈에 안 보이는 제어문자라
+ * 화면에 직접 놓고 편집할 수 없다(글꼴에 따라 아예 안 그려지거나 캐럿 위치를 알기
+ * 어려움). "▼"는 실제로 보이고 클릭·선택·삭제가 되는 진짜 한 글자라 예전에 겪었던
+ * "안 보이는 문자 + 화면에만 다른 걸 겹쳐 보여주기" 방식의 캐럿 버그를 피할 수 있다.
+ * 0x1F로의 진짜 변환은 IsbnConvert.tsx의 "전체복사"에서만 일어난다(lib/mrk.ts의
+ * serializeRecordAsMarcBinary). */
 function tokenizeRow(rowText: string): RowToken[] {
   const tag = rowText.slice(0, 3)
   const tokens: RowToken[] = [{ text: tag, cls: 'tok-tag' }]
@@ -78,12 +86,12 @@ function tokenizeRow(rowText: string): RowToken[] {
   const rest = rowText.slice(5)
   if (!rest) return tokens
 
-  const re = /\$(.)([^$]*)/g
+  const re = /▼(.)([^▼]*)/g
   let lastIndex = 0
   let m: RegExpExecArray | null
   while ((m = re.exec(rest))) {
     if (m.index > lastIndex) tokens.push({ text: rest.slice(lastIndex, m.index), cls: 'tok-raw' })
-    tokens.push({ text: '$' + m[1], cls: 'tok-dollar' })
+    tokens.push({ text: '▼' + m[1], cls: 'tok-dollar' })
     if (m[2]) tokens.push({ text: m[2], cls: 'tok-val' })
     lastIndex = re.lastIndex
   }
@@ -104,7 +112,7 @@ function buildRowHtml(rowText: string): string {
 
 /** MrkField(구조화된 상태) → 편집용 순수 텍스트 한 줄.
  * rowTextToField와 반드시 "글자 하나도 안 바뀌게" 왕복해야 한다(아래 rowTextToField의
- * 코멘트 참고) — 코드가 빈 서브필드는 "$"를 안 붙이고 값만 그대로 내보내고, 지시기호는
+ * 코멘트 참고) — 코드가 빈 서브필드는 "▼"를 안 붙이고 값만 그대로 내보내고, 지시기호는
  * 사용자가 실제로 입력한 글자를 그대로 내보낸다(빈 값일 때만 '\'로 채운다). */
 function fieldToRowText(f: MrkField): string {
   if (f.kind === 'control') return f.tag + f.value
@@ -124,7 +132,7 @@ function fieldToRowText(f: MrkField): string {
   // 빈 문자열로 오지 않으므로, 이 조건으로 좁혀도 원래 기능은 그대로다.
   const ind1 = f.ind1 === '\\' ? ' ' : f.ind1
   const ind2 = f.ind2 === '\\' ? ' ' : f.ind2
-  const sf = f.subfields.map((s) => (s.code ? `$${s.code}${s.value}` : s.value)).join('')
+  const sf = f.subfields.map((s) => (s.code ? `▼${s.code}${s.value}` : s.value)).join('')
   return f.tag + ind1 + ind2 + sf
 }
 
@@ -133,8 +141,8 @@ function fieldToRowText(f: MrkField): string {
  * 아님) — 저장 시 검증은 이 결과를 보고 별도로 한다.
  *
  * 절대 글자를 바꾸거나 버리면 안 된다(이 함수와 fieldToRowText는 항상 정확히 왕복해야
- * 한다) — "$" 앞에 뜬금없는 텍스트가 낀 순간도 있을 수 있는데(예: 태그를 고치는 도중
- * 지시기호 칸이 밀려서 "$"를 삼켜버린 경우) 코드가 빈 서브필드({code:'', value:그
+ * 한다) — "▼" 앞에 뜬금없는 텍스트가 낀 순간도 있을 수 있는데(예: 태그를 고치는 도중
+ * 지시기호 칸이 밀려서 "▼"를 삼켜버린 경우) 코드가 빈 서브필드({code:'', value:그
  * 텍스트})로 보존한다. 저장 검증에서 "코드 없음"으로 걸러지긴 하지만 데이터 자체는
  * 안 사라진다. 지시기호에 남는 스페이스도 여기서 바꾸지 않는다(내보내기 시점인
  * lib/mrk.ts의 serializeField에서만 '\'로 정리) — 편집 중 눈앞에서 글자가 바뀌는
@@ -148,7 +156,7 @@ function rowTextToField(rowText: string): MrkField {
   const ind2 = rowText[4] ?? ''
   const rest = rowText.slice(5)
   const subfields: MrkSubfield[] = []
-  const re = /\$(.)([^$]*)/g
+  const re = /▼(.)([^▼]*)/g
   let lastIndex = 0
   let m: RegExpExecArray | null
   while ((m = re.exec(rest))) {
@@ -367,7 +375,8 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
   // Alt+Enter = 커서가 그 필드의 맨 끝이면 "새 필드를 하나 더 만든다"(빈 행을 끼워
   // 넣고 그 자리로 이동 — 바로 이어서 태그를 칠 수 있음). 필드 중간이면 예전 그대로
   // 값 안에 줄바꿈을 하나 꽂아 넣는다(serializeField가 내보낼 때 공백으로 접어준다).
-  // Alt+글자 = "$글자" 두 글자를 caret 위치에 꽂아 넣는 편의 단축키.
+  // Alt+글자 = "▼글자" 두 글자를 caret 위치에 꽂아 넣는 편의 단축키(▼는 국중 표시
+  // 관례를 그대로 편집 화면의 실제 문자로 쓴 것 — tokenizeRow 위 코멘트 참고).
   //
   // 여러 필드에 걸친 선택 상태에서 지우기/타이핑/붙여넣기는 막는다 — 필드끼리 실제로
   // 합쳐지면 MRK 구조 자체가 깨지기 때문. 선택(그래서 드래그 복사)은 이 핸들러를
@@ -412,7 +421,7 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
 
     if (e.altKey && !e.ctrlKey && !e.metaKey && /^[a-zA-Z0-9]$/.test(e.key)) {
       e.preventDefault()
-      document.execCommand('insertText', false, '$' + e.key.toLowerCase())
+      document.execCommand('insertText', false, '▼' + e.key.toLowerCase())
       return
     }
 
@@ -495,7 +504,7 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
               <div
                 className="warn-icon"
                 contentEditable={false}
-                data-tooltip={`필수 서브필드 누락: $${missing.join(', $')}`}
+                data-tooltip={`필수 서브필드 누락: ▼${missing.join(', ▼')}`}
               >
                 ⚠
               </div>

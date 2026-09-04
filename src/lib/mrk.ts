@@ -85,6 +85,38 @@ export function serializeRecord(fields: MrkField[]): string {
   return fields.map(serializeField).join('\n')
 }
 
+// 서브필드 구분자(Unit Separator)와 필드 종료자(Record Separator) — 진짜 MARC(ISO 2709)
+// 바이너리 레코드 안에 그대로 들어가는 제어 바이트다. "▼"나 "$"처럼 사람이 보라고
+// 만든 니모닉 표기가 아니다.
+const MARC_US = '\x1f'
+const MARC_RS = '\x1e'
+
+/**
+ * MrkField → 실제 도서관리 시스템(예: 남산마크)이 내보내는 것과 같은 "진짜 MARC
+ * 바이너리 구분자" 텍스트 한 줄. serializeField와 다른 점 셋:
+ *  1. "=태그  " 접두가 없다 — 그 시스템의 내보내기 원문도 없었다(직접 파일 바이트를
+ *     까서 확인함 — 2026-09-04, I2M 0904/111.txt·남산마크.txt).
+ *  2. 서브필드 구분자가 "$"/"▼"가 아니라 진짜 0x1F(Unit Separator) 바이트.
+ *  3. 빈 지시기호가 "\"가 아니라 원본처럼 실제 스페이스 문자.
+ * 필드 끝은 0x1E(Record Separator)로 표시한다 — 이것도 원본 그대로.
+ */
+export function serializeFieldAsMarcBinary(f: MrkField): string {
+  if (f.kind === 'control') return f.tag + f.value
+  const ind1 = f.ind1 && f.ind1 !== '\\' ? f.ind1 : ' '
+  const ind2 = f.ind2 && f.ind2 !== '\\' ? f.ind2 : ' '
+  const sfText = f.subfields
+    .map((sf) => `${MARC_US}${sf.code}${sf.value.replace(/\s*\n\s*/g, ' ').trim()}`)
+    .join('')
+  return `${f.tag}${ind1}${ind2}${sfText}`
+}
+
+/** serializeRecord의 진짜-MARC-바이너리 버전 — "전체복사"가 이걸로 클립보드에 담는다
+ * (IsbnConvert.tsx의 handleCopyAll). 각 필드 뒤에 0x1E + CRLF를 붙인다 — 원본 파일이
+ * 그 모양이었다(필드마다 줄바꿈처럼 보이되 실제로는 0x1E가 그 줄바꿈 문자 앞에 있음). */
+export function serializeRecordAsMarcBinary(fields: MrkField[]): string {
+  return fields.map((f) => serializeFieldAsMarcBinary(f) + MARC_RS + '\r\n').join('')
+}
+
 /** REQUIRED_SUBFIELDS 기준 누락된 서브필드 코드 목록. control 필드는 항상 []. */
 export function missingSubfields(f: MrkField): string[] {
   if (f.kind !== 'data') return []

@@ -3,7 +3,15 @@ import { convertIsbn, mrkToMarc } from '../api/client'
 import type { HistoryRecord } from '../types/history'
 import type { MrkField } from '../types/mrk'
 import { useIsbnHistory } from '../context/isbnHistory'
-import { parseMrkText, serializeRecord, extractTitle, applyKdcToFields, nextUid, missingSubfields } from '../lib/mrk'
+import {
+  parseMrkText,
+  serializeRecord,
+  serializeRecordAsMarcBinary,
+  extractTitle,
+  applyKdcToFields,
+  nextUid,
+  missingSubfields,
+} from '../lib/mrk'
 import { formatElapsed } from '../lib/format'
 import FieldEditor from '../components/FieldEditor'
 import ClassificationPanel from '../components/ClassificationPanel'
@@ -263,9 +271,13 @@ export default function IsbnConvert() {
     )
   }
 
+  // "전체 복사"만 진짜 MARC 바이너리 구분자(0x1F/0x1E)로 내보낸다 — 다른 도서관리
+  // 시스템(예: 남산마크)에 바로 붙여넣을 수 있게 하기 위함. 화면(▼)·행 복사·.mrk
+  // 다운로드·저장 검증 등 나머지는 전부 지금 그대로("$" 기반 mrk 텍스트) 둔다 — 이건
+  // 명시적으로 요청받은 범위다(2026-09-04).
   function handleCopyAll() {
-    navigator.clipboard.writeText(finalMrk)
-    showToast('레코드 전체를 복사했어요.')
+    navigator.clipboard.writeText(serializeRecordAsMarcBinary(draftFields))
+    showToast('레코드 전체를 MARC 바이너리 형식으로 복사했어요.')
   }
 
   function handleCopyLine(line: string) {

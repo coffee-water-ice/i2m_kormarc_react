@@ -110,8 +110,8 @@ export default function ClassificationPanel({
       <div className="class-apply">
         → 적용될 값
         <code>
-          =056  \\$a{finalKdc}
-          {edition ? `$2${edition}` : ''}
+          056  ▼a{finalKdc}
+          {edition ? `▼2${edition}` : ''}
         </code>
       </div>
     </aside>
