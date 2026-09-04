@@ -10,7 +10,7 @@
  * 처음부터 반영했다.
  */
 
-import type { MrkField, MrkSubfield } from '../types/mrk'
+import type { MrkDataField, MrkField, MrkSubfield } from '../types/mrk'
 import { REQUIRED_SUBFIELDS } from '../types/mrk'
 
 export function isControlTag(tag: string): boolean {
@@ -179,6 +179,45 @@ export function applyKdcToFields(fields: MrkField[], kdc: string): MrkField[] {
       : [{ code: 'a', value: kdc }, ...f.subfields]
     return { ...f, subfields }
   })
+}
+
+/** 049(소장사항/등록번호) 필드를 draft에 반영 — ISBN 변환만으로는 알 수 없는, 사서가
+ * 직접 입력해야 하는 값이라(다른 필드처럼 백엔드가 만들어주지 않음) HoldingsPanel의
+ * 입력창이 매 타이핑마다 이 함수로 draftFields를 갱신한다. regNo가 비어 있으면(전부
+ * 지웠으면) 기존 049 필드를 아예 없앤다 — 선택 입력이라 안 쓰면 필드 자체가 없어야
+ * 하기 때문. 지시기호는 '0'(첫 번째)·' '(두 번째, 빈칸)로, 서브필드 코드는 '$I'로
+ * 고정한다(요청 사양). 049가 아직 없을 때 새로 만드는 경우에만 950 바로 다음 자리에
+ * 끼워 넣는다(950이 없으면 맨 끝) — 태그 번호 정렬(parseMrkText의 sort)과 무관하게
+ * "언제나 950 다음"이어야 한다는 화면 위치 요구사항 때문에 여기서 직접 다룬다. 이미
+ * 049가 있으면(사서가 FieldEditor에서 직접 옮겨놨을 수도 있으니) 값만 갱신하고 위치는
+ * 건드리지 않는다. */
+export function applyHoldingsRegToFields(fields: MrkField[], regNo: string): MrkField[] {
+  const trimmed = regNo.trim()
+  const idx049 = fields.findIndex((f) => f.tag === '049')
+
+  if (!trimmed) {
+    return idx049 === -1 ? fields : fields.filter((_, i) => i !== idx049)
+  }
+
+  const field049: MrkDataField = {
+    tag: '049',
+    kind: 'data',
+    ind1: '0',
+    ind2: ' ',
+    subfields: [{ code: 'I', value: trimmed }],
+  }
+
+  if (idx049 !== -1) {
+    const next = [...fields]
+    next[idx049] = field049
+    return next
+  }
+
+  const idx950 = fields.findIndex((f) => f.tag === '950')
+  const insertAt = idx950 === -1 ? fields.length : idx950 + 1
+  const next = [...fields]
+  next.splice(insertAt, 0, field049)
+  return next
 }
 
 let _nextUid = 1

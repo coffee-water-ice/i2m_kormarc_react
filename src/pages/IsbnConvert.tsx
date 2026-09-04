@@ -10,12 +10,14 @@ import {
   serializeRecordForMarcExport,
   extractTitle,
   applyKdcToFields,
+  applyHoldingsRegToFields,
   nextUid,
   missingSubfields,
 } from '../lib/mrk'
 import { formatElapsed } from '../lib/format'
 import FieldEditor from '../components/FieldEditor'
 import ClassificationPanel from '../components/ClassificationPanel'
+import HoldingsPanel from '../components/HoldingsPanel'
 import './IsbnConvert.css'
 
 /**
@@ -182,11 +184,14 @@ export default function IsbnConvert() {
     const meta = result.meta ?? {}
     const candidates = meta.kdc_candidates ?? []
     const kdcSelected = candidates[0]?.kdc ?? ''
-    // 모델은 강(2자리)까지만 판단한다(로직은 그대로) — 화면(사서 편집 + 분류 패널)에는
-    // 세목 '0'을 기본으로 붙여 보여준다. 사서가 직접 세목을 입력하면 그 값으로 바뀐다
-    // (handleKdcDetailChange). 후보가 없으면(056 미생성) 그대로 둔다.
-    const kdcDetail = '0'
-    const initialFields = kdcSelected ? applyKdcToFields(fields, `${kdcSelected}${kdcDetail}`) : fields
+    // 모델은 강(2자리)까지만 판단한다(로직은 그대로) — 세목 입력창 자체는 빈 칸으로
+    // 시작한다(2026-09-04까지는 '0'을 기본값으로 넣어놨었는데, 사서가 직접 입력하기
+    // 전엔 빈 칸이 자연스럽다는 요청으로 바뀜). 다만 실제로 적용되는 056 $a 값과
+    // 순위 표시(class-bar-label 등)는 세목이 비어 있어도 '0'을 기본으로 계산한다 —
+    // 강(2자리)만 있는 완성 안 된 분류기호를 그대로 적용하지 않기 위함(pushKdcToFields의
+    // `detail.trim() || '0'`와 같은 규칙). 후보가 없으면(056 미생성) 그대로 둔다.
+    const kdcDetail = ''
+    const initialFields = kdcSelected ? applyKdcToFields(fields, `${kdcSelected}${kdcDetail.trim() || '0'}`) : fields
     const rec: HistoryRecord = {
       uid: nextUid(),
       isbn: result.isbn,
@@ -227,6 +232,19 @@ export default function IsbnConvert() {
 
   function handleKdcDetailChange(detail: string) {
     pushKdcToFields(draftKdcSelected, detail)
+  }
+
+  // 049(소장사항/등록번호) — kdcSelected/kdcDetail과 달리 별도 draft 상태를 안 둔다.
+  // $I 값 하나뿐이라 draftFields 자체가 유일한 출처면 충분하고(있으면 그 필드에서
+  // 바로 읽고, 없으면 빈 문자열), applyHoldingsRegToFields가 타이핑마다 draftFields의
+  // 049를 직접 갱신한다(lib/mrk.ts 코멘트 참고 — 950 다음 위치·지시기호/코드 고정).
+  const holdings049 = draftFields.find(
+    (f): f is Extract<MrkField, { kind: 'data' }> => f.kind === 'data' && f.tag === '049',
+  )
+  const holdingsRegValue = holdings049?.subfields.find((sf) => sf.code === 'I')?.value ?? ''
+
+  function handleHoldingsRegChange(value: string) {
+    setDraftFields((f) => applyHoldingsRegToFields(f, value))
   }
 
   function handleDownload() {
@@ -414,17 +432,20 @@ export default function IsbnConvert() {
               />
             </div>
 
-            <ClassificationPanel
-              candidates={candidates}
-              ratio={current.meta.kdc_margin_ratio}
-              lowConfidence={current.meta.kdc_low_confidence}
-              reason={current.meta.kdc_reason}
-              edition={current.meta.kdc_edition}
-              selected={draftKdcSelected}
-              detail={draftKdcDetail}
-              onSelect={handleKdcSelect}
-              onDetailChange={handleKdcDetailChange}
-            />
+            <div className="side-panels">
+              <ClassificationPanel
+                candidates={candidates}
+                ratio={current.meta.kdc_margin_ratio}
+                lowConfidence={current.meta.kdc_low_confidence}
+                reason={current.meta.kdc_reason}
+                edition={current.meta.kdc_edition}
+                selected={draftKdcSelected}
+                detail={draftKdcDetail}
+                onSelect={handleKdcSelect}
+                onDetailChange={handleKdcDetailChange}
+              />
+              <HoldingsPanel value={holdingsRegValue} onChange={handleHoldingsRegChange} />
+            </div>
           </section>
         )}
       </div>

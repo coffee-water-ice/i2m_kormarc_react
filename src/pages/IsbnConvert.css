@@ -135,6 +135,19 @@
   align-items: start;
 }
 
+/* 056 KDC 분류기호(ClassificationPanel) + 049 소장사항(HoldingsPanel)을 세로로 쌓는
+   자리 — 두 컴포넌트 다 ClassificationPanel.css의 .class-panel을 쓰는데, sticky를
+   그 클래스 자체에 두면(예전처럼) 패널이 둘이 된 지금은 각자 top:20px로 따로
+   붙으려다 스크롤 중 서로 겹친다. 그래서 sticky는 이 감싸는 컬럼 하나에만 두고,
+   .class-panel 쪽은 일반 위치로 남긴다 — 두 패널이 한 덩어리로 함께 붙는다. */
+.side-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 20px;
+}
+
 .card {
   background: var(--card-bg);
   border-radius: 12px;
