@@ -34,6 +34,15 @@
 .field-row.pulse {
   animation: pulseRow 0.9s ease;
 }
+/* 태그 자리(첫 3자)가 완성된 3자리 숫자가 아닐 때(Enter로 값 중간을 쪼개서 새 필드의
+   태그가 "▼d새" 같은 걸로 시작하게 된 경우 등) 실시간으로 보여주는 오류 표시 —
+   FieldEditor.tsx의 isThreeDigitTag/tagOk 참고. 저장 시점 검증과 별개로, 사서가
+   정당한 3자리 숫자를 입력하는 순간 다음 렌더에서 저절로 사라진다. */
+.field-row.tag-error .tok-tag {
+  color: var(--term-red);
+  text-decoration: underline wavy var(--term-red);
+  text-underline-offset: 3px;
+}
 @keyframes pulseRow {
   0% {
     background: #f2ecff;
@@ -72,8 +81,10 @@
    버그를 사전에 차단한다. */
 .field-row-content::after {
   content: '▲';
-  color: var(--ink-dim);
-  opacity: 0.55;
+  color: var(--term-red);
+  font-size: 0.5em;
+  vertical-align: middle;
+  opacity: 0.75;
   margin-left: 3px;
   user-select: none;
   pointer-events: none;
@@ -84,11 +95,20 @@
   font-weight: 700;
 }
 .tok-ind {
-  color: var(--tag-blue);
+  color: var(--ind-green);
   font-weight: 700;
 }
+/* "▼"(식별기호 구분자) 글자만 따로 뗀 토큰 — tokenizeRow에서 tok-dollar(코드 글자,
+   예: "a")와 분리해 만들었다: 삼각형만 50% 작게 줄이고 뒤따르는 코드 글자는 원래
+   크기 그대로 두기 위함(요청: "현재의 삼각형 기호들은 크기가 너무 커. 50%정도 작게"). */
+.tok-delim {
+  color: var(--sf-blue);
+  font-weight: 700;
+  font-size: 0.5em;
+  vertical-align: middle;
+}
 .tok-dollar {
-  color: var(--sf-rust);
+  color: var(--sf-blue);
   font-weight: 700;
 }
 .tok-val {

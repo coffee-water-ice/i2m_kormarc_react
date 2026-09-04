@@ -33,6 +33,14 @@
   --tag-navy: #16305c;
   /* 필드 숫자(태그) 글자색 — 분홍, 지시기호 글자색은 --tag-blue를 그대로 재사용(파랑). */
   --tag-pink: #d6336c;
+  /* 사서편집 기호 색상 재조정(2026-09-04) — 지시기호=옅은 녹색/식별기호(▼)=진한
+     파랑/종단기호(▲)=빨강. 기존 --tag-blue/--sf-rust/--accent-emerald 등을 재사용하지
+     않고 새 토큰을 만든 이유: 저 토큰들은 ClassificationPanel.tsx/IsbnConvert.css/
+     App.css 등 다른 화면에서도 이미 쓰이고 있어서 값을 바꾸면 거기까지 같이 바뀐다 —
+     이 변경은 FieldEditor 안의 기호 색만 바꾸는 것이므로 전용 토큰으로 분리한다. */
+  --ind-green: #3aa76d;
+  --sf-blue: #1a3a75;
+  --term-red: #c0392b;
 
   --rail-control: #7c8494;
   --rail-class: #7c4dd6;

@@ -54,9 +54,16 @@ function isControlTag(tag: string): boolean {
   return /^\d{3}$/.test(tag) && parseInt(tag, 10) < 10
 }
 
+/** 태그 자리(첫 3자)가 완성된 3자리 숫자인지 — 제어필드 여부와 무관하게 "형식 자체"만
+ * 본다. 행 렌더링에서 이게 false면 실시간으로 오류 표시를 띄운다(태그를 마저 쳐서
+ * 3자리 숫자가 되면 다음 렌더에서 저절로 사라짐). */
+function isThreeDigitTag(tag: string): boolean {
+  return /^\d{3}$/.test(tag)
+}
+
 interface RowToken {
   text: string
-  cls: 'tok-tag' | 'tok-ind' | 'tok-dollar' | 'tok-val' | 'tok-raw'
+  cls: 'tok-tag' | 'tok-ind' | 'tok-delim' | 'tok-dollar' | 'tok-val' | 'tok-raw'
 }
 
 /** 순수 텍스트 한 줄을 위치 규칙(태그 3자리 → [지시기호 2자리] → ▼코드+값 반복)에 따라
@@ -91,7 +98,11 @@ function tokenizeRow(rowText: string): RowToken[] {
   let m: RegExpExecArray | null
   while ((m = re.exec(rest))) {
     if (m.index > lastIndex) tokens.push({ text: rest.slice(lastIndex, m.index), cls: 'tok-raw' })
-    tokens.push({ text: '▼' + m[1], cls: 'tok-dollar' })
+    // "▼"와 코드 글자를 별도 토큰(span)으로 나눈다 — 텍스트 내용은 합쳐서 보나
+    // ("▼a") 똑같지만(TreeWalker/caret 계산엔 영향 없음), 삼각형 기호만 따로
+    // 작게 그리고 싶어서(코드 글자는 그대로 원래 크기) 스타일링 단위를 쪼갠다.
+    tokens.push({ text: '▼', cls: 'tok-delim' })
+    tokens.push({ text: m[1], cls: 'tok-dollar' })
     if (m[2]) tokens.push({ text: m[2], cls: 'tok-val' })
     lastIndex = re.lastIndex
   }
@@ -179,6 +190,22 @@ function getCaretOffsetInRow(root: HTMLElement): number | null {
   while ((node = walker.nextNode() as Text | null)) {
     const clean = stripPlaceholder(node.data)
     if (node === range.startContainer) return offset + Math.min(range.startOffset, clean.length)
+    offset += clean.length
+  }
+  return offset
+}
+
+/** root 안의 임의의 (node, nodeOffset) 지점이 root 기준 몇 번째 문자 오프셋인지
+ * 계산한다 — getCaretOffsetInRow와 같은 걷기 로직이지만 "지금 caret"이 아니라
+ * 특정 Range 경계(예: 선택 범위의 시작/끝)를 대상으로 써야 할 때 필요하다(Enter로
+ * 필드를 쪼갤 때 선택 범위 양끝을 각각 알아야 함). */
+function offsetOfPoint(root: HTMLElement, node: Node, nodeOffset: number): number {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  let offset = 0
+  let n: Text | null
+  while ((n = walker.nextNode() as Text | null)) {
+    const clean = stripPlaceholder(n.data)
+    if (n === node) return offset + Math.min(nodeOffset, clean.length)
     offset += clean.length
   }
   return offset
@@ -320,22 +347,27 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [pulseSignal])
 
-  function navigateRow(rowIdx: number, dir: number) {
-    const target = rowIdx + dir
-    if (target < 0 || target >= fields.length) return
-    setPendingFocus({ row: target, offset: 0 })
-  }
-
-  /** rowIdx 바로 다음에 빈 필드를 하나 끼워 넣고 그 자리로 커서를 옮긴다(Alt+Enter로
-   * 새 태그를 시작할 때 씀). kind:'control'에 value:''를 쓰는 이유는 fieldToRowText가
-   * 그 경우 순수 빈 문자열을 내보내기 때문 — data 필드였다면 빈 지시기호가 자동으로
-   * 스페이스 두 칸을 채워서(fieldToRowText) 태그를 치는 순간 그 스페이스들 앞에
-   * 끼어 들어가 "700  " 같은 잘못된 모양이 된다. 실제 kind는 사용자가 태그를 치는
-   * 순간 rowTextToField가 그 글자로 새로 판정하므로 시작값은 중요하지 않다. */
-  function insertFieldAfter(rowIdx: number) {
-    const blank: MrkField = { tag: '', kind: 'control', value: '' }
+  /** rowIdx 행을 (startOffset, endOffset) 지점에서 둘로 쪼갠다 — 앞부분은 그 자리에
+   * 남고, 뒷부분(선택 범위가 있었다면 그 사이 글자는 버려짐 — 일반 텍스트 에디터의
+   * Enter와 같은 동작)은 새 필드로 바로 다음 줄에 들어간다. 커서가 행 맨 끝에 있었으면
+   * (startOffset===endOffset===전체 길이) 뒷부분이 빈 문자열이라 그냥 빈 새 필드가
+   * 하나 생기는 것과 같다 — 예전에 Alt+Enter가 "필드 끝에서만" 하던 일이 이제
+   * Enter 하나로 통일된 것뿐이다.
+   *
+   * 앞/뒤 둘 다 rowTextToField로 다시 파싱한다 — 그 함수는 rowText가 무슨 모양이든
+   * (태그 3자리가 안 채워졌어도) 절대 안 던지므로, 값 중간에서 Enter를 쳐서 뒷부분이
+   * "▼d새뮤얼..." 같은 걸로 시작해도 tag="▼d새"(당연히 숫자 3자리가 아님)로 그대로
+   * 보존된다 — 그 상태는 render의 tagOk가 실시간으로 오류 표시를 띄우고, 사서가
+   * 정당한 3자리 숫자로 고치면 다음 렌더에서 저절로 사라진다. */
+  function splitFieldAt(rowIdx: number, startOffset: number, endOffset: number) {
+    const rowEl = rowRefs.current.get(rowIdx)
+    if (!rowEl) return
+    const fullText = stripPlaceholder(rowEl.textContent ?? '')
+    const before = fullText.slice(0, startOffset)
+    const after = fullText.slice(endOffset)
     const next = [...fields]
-    next.splice(rowIdx + 1, 0, blank)
+    next[rowIdx] = rowTextToField(before)
+    next.splice(rowIdx + 1, 0, rowTextToField(after))
     onBeforeStructuralChange?.()
     onChange(next)
     setPendingFocus({ row: rowIdx + 1, offset: 0 })
@@ -371,18 +403,23 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
     syncRowFromDom(rowIdx)
   }
 
-  // Enter = 다음 행(Shift+Enter = 이전).
-  // Alt+Enter = 커서가 그 필드의 맨 끝이면 "새 필드를 하나 더 만든다"(빈 행을 끼워
-  // 넣고 그 자리로 이동 — 바로 이어서 태그를 칠 수 있음). 필드 중간이면 예전 그대로
-  // 값 안에 줄바꿈을 하나 꽂아 넣는다(serializeField가 내보낼 때 공백으로 접어준다).
+  // Enter = 커서(또는 선택 범위) 위치에서 그 필드를 둘로 쪼개 새 데이터 필드를
+  // 만든다(splitFieldAt) — 커서가 필드 맨 끝에 있으면 실질적으로 "빈 새 필드 추가"와
+  // 같다. 여러 필드에 걸친 선택 상태에서는 막는다(아래 crossesRows 처리). Shift+Enter도
+  // 똑같이 취급한다 — Enter의 의미가 "다음 행으로 이동"에서 "필드 쪼개기"로 바뀌면서
+  // Shift+Enter만 따로 "이전 행으로 이동"으로 남겨둘 이유가 없어졌다(행 이동은 방향키로
+  // 자유롭게 되는, 이 편집기 원래의 전제 그대로).
+  // Alt+Enter = 필드를 쪼개지 않고 그 값 안에 줄바꿈을 하나 꽂아 넣는다(브라우저
+  // 기본 동작 그대로 둠 — serializeField가 내보낼 때 공백 하나로 접어준다).
   // Alt+글자 = "▼글자" 두 글자를 caret 위치에 꽂아 넣는 편의 단축키(▼는 국중 표시
   // 관례를 그대로 편집 화면의 실제 문자로 쓴 것 — tokenizeRow 위 코멘트 참고).
   //
-  // 여러 필드에 걸친 선택 상태에서 지우기/타이핑/붙여넣기는 막는다 — 필드끼리 실제로
-  // 합쳐지면 MRK 구조 자체가 깨지기 때문. 선택(그래서 드래그 복사)은 이 핸들러를
-  // 안 거치니 그대로 자유롭다. 같은 이유로, 한 필드의 맨 앞/맨 끝에서 Backspace/Delete로
-  // 옆 필드와 합쳐지려는 것도 막는다 — 다만 그 필드가 완전히 비어 있으면(Alt+Enter로
-  // 만들었다가 그냥 지우고 싶은 경우) Backspace가 그 빈 행 자체를 지워준다.
+  // 여러 필드에 걸친 선택 상태에서 지우기/타이핑/붙여넣기/Enter를 막는다 — 필드끼리
+  // 실제로 합쳐지거나 뜬금없이 쪼개지면 MRK 구조 자체가 깨지기 때문. 선택(그래서
+  // 드래그 복사)은 이 핸들러를 안 거치니 그대로 자유롭다. 같은 이유로, 한 필드의
+  // 맨 앞/맨 끝에서 Backspace/Delete로 옆 필드와 합쳐지려는 것도 막는다 — 다만 그
+  // 필드가 완전히 비어 있으면(Enter로 쪼갰다가 그냥 지우고 싶은 경우) Backspace가
+  // 그 빈 행 자체를 지워준다.
   function handleContainerKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.nativeEvent.isComposing) return
     const containerEl = containerRef.current
@@ -395,20 +432,18 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
     const crossesRows = startRow !== endRow
 
     if (e.key === 'Enter') {
-      if (e.altKey) {
-        if (e.ctrlKey || e.metaKey || !sel.isCollapsed || !startRow) return
-        const rowIdx = Number(startRow.dataset.row)
-        const contentEl = rowRefs.current.get(rowIdx)
-        if (!contentEl) return
-        const offset = getCaretOffsetInRow(contentEl)
-        const len = stripPlaceholder(contentEl.textContent ?? '').length
-        if (offset !== len) return // 필드 중간 — 기존 동작(값 안에 줄바꿈) 그대로 둠
+      if (e.altKey) return // 값 안에 줄바꿈 — 브라우저 기본 동작 그대로 둠
+      if (crossesRows || !startRow) {
         e.preventDefault()
-        insertFieldAfter(rowIdx)
         return
       }
+      const rowIdx = Number(startRow.dataset.row)
+      const contentEl = rowRefs.current.get(rowIdx)
+      if (!contentEl) return
       e.preventDefault()
-      if (startRow) navigateRow(Number(startRow.dataset.row), e.shiftKey ? -1 : 1)
+      const startOffset = offsetOfPoint(contentEl, range.startContainer, range.startOffset)
+      const endOffset = sel.isCollapsed ? startOffset : offsetOfPoint(contentEl, range.endContainer, range.endOffset)
+      splitFieldAt(rowIdx, startOffset, endOffset)
       return
     }
 
@@ -491,10 +526,11 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
     >
       {fields.map((f, rowIdx) => {
         const missing = missingSubfields(f)
+        const tagOk = isThreeDigitTag(f.tag)
         return (
           <div
             key={rowIdx}
-            className={'field-row' + (missing.length ? ' has-warning' : '')}
+            className={'field-row' + (missing.length ? ' has-warning' : '') + (tagOk ? '' : ' tag-error')}
             data-tag={f.tag}
             data-row={rowIdx}
             style={{ ['--rail-color' as string]: RAIL_COLOR[f.tag] ?? (f.kind === 'control' ? 'var(--rail-control)' : 'transparent') }}
