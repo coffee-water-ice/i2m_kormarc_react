@@ -61,6 +61,24 @@
   border-bottom-color: #dfe2ea;
 }
 
+/* 필드 종료 표시("▲") — 진짜 MARC 필드 종료 바이트(0x1E, 마지막 필드는 그 뒤에
+   레코드 종료 0x1D까지)는 "전체 복사"에서만 만들어진다(lib/mrk.ts의
+   serializeRecordAsMarcBinary) — 여기서는 순수 CSS 장식일 뿐, 실제 편집
+   가능한 글자가 아니다(::after는 textContent에도, TreeWalker에도, 드래그
+   선택 결과에도 안 잡힌다 — tokenizeRow·rowTextToField 등 파싱 로직을 전혀
+   안 건드리고 "이 필드가 여기서 끝난다"만 시각적으로 보여줄 수 있는 이유).
+   user-select:none은 그래도 혹시 몰라 명시적으로 — 원래도 생성 콘텐츠는
+   선택에 안 잡히지만, .warn-icon/.row-actions 때 겪었던 것과 같은 종류의
+   버그를 사전에 차단한다. */
+.field-row-content::after {
+  content: '▲';
+  color: var(--ink-dim);
+  opacity: 0.55;
+  margin-left: 3px;
+  user-select: none;
+  pointer-events: none;
+}
+
 .tok-tag {
   color: var(--tag-pink);
   font-weight: 700;
