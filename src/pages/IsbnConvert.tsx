@@ -7,6 +7,7 @@ import {
   parseMrkText,
   serializeRecord,
   serializeRecordAsMarcBinary,
+  serializeRecordForMarcExport,
   extractTitle,
   applyKdcToFields,
   nextUid,
@@ -241,14 +242,19 @@ export default function IsbnConvert() {
   }
 
   /** 진짜 바이너리 MARC(.mrc, ISO 2709) 다운로드 — 백엔드의 /api/mrk-to-marc로 지금
-   * 화면에 있는 mrk 텍스트(finalMrk, 저장 여부와 무관하게 draft 그대로)를 보내서 그
-   * 자리에서 새로 인코딩받는다. 클라이언트엔 MARC 인코더가 없어서(직접 구현하면
-   * ISO 2709 포맷을 통째로 새로 짜야 함 — pymarc가 이미 하는 일을 중복 구현하는 셈)
-   * 백엔드에 위임했다 — 그래서 사서 편집에서 고친 내용도 그대로 반영된다. */
+   * 화면에 있는 mrk 텍스트(저장 여부와 무관하게 draft 그대로)를 보내서 그 자리에서
+   * 새로 인코딩받는다. 클라이언트엔 MARC 인코더가 없어서(직접 구현하면 ISO 2709
+   * 포맷을 통째로 새로 짜야 함 — pymarc가 이미 하는 일을 중복 구현하는 셈) 백엔드에
+   * 위임했다 — 그래서 사서 편집에서 고친 내용도 그대로 반영된다.
+   * finalMrk가 아니라 serializeRecordForMarcExport(draftFields)를 보낸다 — 둘 다
+   * "$" 관례 텍스트라 형태는 같지만, 원화 표기만 다르다(finalMrk는 화면에 보이는
+   * 유니코드 ₩ 그대로, 이건 실제 남산마크 원본과 같은 백슬래시로 바꿔서 보냄) —
+   * 진짜 바이너리로 나가는 파일이니 실제 MARC 바이트와 일치해야 한다(lib/mrk.ts
+   * 상단 WON_SIGN 코멘트 참고). */
   async function handleDownloadMrc() {
     if (!current) return
     setDownloadingMrc(true)
-    const result = await mrkToMarc(finalMrk)
+    const result = await mrkToMarc(serializeRecordForMarcExport(draftFields))
     setDownloadingMrc(false)
     if (!result.marcBytesB64) {
       showToast(`.mrc 인코딩에 실패했어요 — ${result.error ?? '알 수 없는 오류'}`)

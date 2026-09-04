@@ -58,7 +58,22 @@ export function parseMrkText(text: string): MrkField[] {
   return fields
 }
 
-export function serializeField(f: MrkField): string {
+// 원화(₩) 표기 — 사서편집 화면·.mrk 다운로드·원본 텍스트 미리보기는 사서가 보기
+// 편하라고 유니코드 ₩ 그대로 둔다. 하지만 실제 MARC 바이트로 나가는 두 경로
+// (전체 복사·.mrc 다운로드)는 실제 도서관 시스템(남산마크) 원본과 똑같이
+// 백슬래시(0x5C)를 써야 한다 — 옛 한국 코드페이지에서 그 바이트가 ₩로 렌더링되던
+// 관례를 그대로 반영한 원본 표기이기 때문(2026-09-04, I2M 0904/남산마크.txt를
+// 16진 덤프로 직접 확인). 같은 폴더의 111.txt는 반대로 유니코드 ₩를 쓰고 있어
+// 두 원본이 서로 다른데, 사서가 실제로 쓰는 남산마크 쪽 표기를 따르기로 했다.
+const WON_SIGN = '₩'
+function toRealMarcValue(value: string): string {
+  return value.split(WON_SIGN).join('\\')
+}
+
+/** serializeField/serializeFieldForMarcExport가 공유하는 본체 — 서브필드 값을 내보내기
+ * 직전에 한 번 변형할 수 있게 valueTransform을 받는다(기본은 손대지 않음, MARC 수출
+ * 경로는 toRealMarcValue를 넘겨서 원화 표기만 바꾼다). */
+function serializeFieldInternal(f: MrkField, valueTransform: (v: string) => string): string {
   if (f.kind === 'control') {
     // 008처럼 고정 길이(40자) 제어필드는 끝 공백이 자릿수를 채우는 의미 있는 값이라
     // 그대로 둔다(파일 상단 주석 참고) — 트리밍은 데이터필드 서브필드 값에만 적용한다.
@@ -76,13 +91,29 @@ export function serializeField(f: MrkField): string {
   // 다음 줄이 "=태그  " 형식이 아니라서 재파싱(parseMrkText) 때 통째로 사라진다 —
   // 그래서 개행은 어디까지나 편집 중 보기 편하라고 두는 것이고, 내보낼 땐 접는다.
   const sfText = f.subfields
-    .map((sf) => `$${sf.code}${sf.value.replace(/\s*\n\s*/g, ' ').trim()}`)
+    .map((sf) => `$${sf.code}${valueTransform(sf.value.replace(/\s*\n\s*/g, ' ').trim())}`)
     .join('')
   return `=${f.tag}  ${ind1}${ind2}${sfText}`
 }
 
+export function serializeField(f: MrkField): string {
+  return serializeFieldInternal(f, (v) => v)
+}
+
 export function serializeRecord(fields: MrkField[]): string {
   return fields.map(serializeField).join('\n')
+}
+
+/** serializeField와 형태는 똑같이 "$" 관례(백엔드 /api/mrk-to-marc가 파싱하는 mrk
+ * 텍스트 포맷) 그대로지만, 원화 표기만 toRealMarcValue로 실제 MARC 바이트에 맞춘다 —
+ * .mrc 다운로드(handleDownloadMrc)가 백엔드로 보내기 직전에만 쓴다. 화면(사서편집)·
+ * .mrk 다운로드·원본 텍스트는 계속 serializeRecord를 쓰므로 영향 없다. */
+export function serializeFieldForMarcExport(f: MrkField): string {
+  return serializeFieldInternal(f, toRealMarcValue)
+}
+
+export function serializeRecordForMarcExport(fields: MrkField[]): string {
+  return fields.map(serializeFieldForMarcExport).join('\n')
 }
 
 // 진짜 MARC(ISO 2709) 바이너리 레코드 안에 그대로 들어가는 제어 바이트 셋 —
@@ -105,7 +136,7 @@ export function serializeFieldAsMarcBinary(f: MrkField): string {
   const ind1 = f.ind1 && f.ind1 !== '\\' ? f.ind1 : ' '
   const ind2 = f.ind2 && f.ind2 !== '\\' ? f.ind2 : ' '
   const sfText = f.subfields
-    .map((sf) => `${MARC_US}${sf.code}${sf.value.replace(/\s*\n\s*/g, ' ').trim()}`)
+    .map((sf) => `${MARC_US}${sf.code}${toRealMarcValue(sf.value.replace(/\s*\n\s*/g, ' ').trim())}`)
     .join('')
   return `${f.tag}${ind1}${ind2}${sfText}`
 }
