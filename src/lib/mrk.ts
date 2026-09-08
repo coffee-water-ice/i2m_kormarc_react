@@ -118,10 +118,11 @@ export function serializeRecordForMarcExport(fields: MrkField[]): string {
 
 // 진짜 MARC(ISO 2709) 바이너리 레코드 안에 그대로 들어가는 제어 바이트 셋 —
 // "▼"나 "$"처럼 사람이 보라고 만든 니모닉 표기가 아니다. 111.txt·남산마크.txt를
-// 직접 바이트로 까서 확인함(2026-09-04, I2M 0904/).
-const MARC_US = '\x1f' // Unit Separator — 서브필드 구분자
-const MARC_FT = '\x1e' // Field Terminator — 필드 하나가 끝날 때마다
-const MARC_RT = '\x1d' // Record Terminator — 레코드 전체가 끝날 때 딱 한 번(맨 끝 필드 뒤)
+// 직접 바이트로 까서 확인함(2026-09-04, I2M 0904/). FieldEditor.tsx의 드래그
+// 선택 복사(onCopy)도 이 상수를 그대로 가져다 쓰므로 export한다.
+export const MARC_US = '\x1f' // Unit Separator — 서브필드 구분자
+export const MARC_FT = '\x1e' // Field Terminator — 필드 하나가 끝날 때마다
+export const MARC_RT = '\x1d' // Record Terminator — 레코드 전체가 끝날 때 딱 한 번(맨 끝 필드 뒤)
 
 /**
  * MrkField → 실제 도서관리 시스템(예: 남산마크)이 내보내는 것과 같은 "진짜 MARC
@@ -149,6 +150,18 @@ export function serializeFieldAsMarcBinary(f: MrkField): string {
 export function serializeRecordAsMarcBinary(fields: MrkField[]): string {
   const body = fields.map((f) => serializeFieldAsMarcBinary(f) + MARC_FT + '\r\n').join('')
   return body + MARC_RT + '\r\n'
+}
+
+/** 사서편집 화면에서 마우스로 드래그 선택한, "화면에 보이는 그대로의" 부분 문자열
+ * 한 조각(▼가 문자 그대로 들어있는 자유 텍스트 — 태그가 안 채워졌거나 값 중간에서
+ * 잘렸을 수도 있음)을 실제 MARC 바이트 표기로 바꾼다. FieldEditor.tsx의 onCopy
+ * 핸들러(드래그 선택 후 Ctrl+C)가 클립보드에 넣기 직전에 쓴다 — serializeFieldAsMarcBinary와
+ * 달리 완성된 MrkField 단위가 아니라 임의의 부분 문자열을 받으므로, 서브필드로
+ * 다시 조립하지 않고 이미 화면에 있는 문자만 두 가지 그대로 치환한다: "▼"(식별기호
+ * 구분자) → 진짜 0x1F(MARC_US), "₩"(원화 표시, toRealMarcValue) → 실제 MARC
+ * 원본과 같은 백슬래시(0x5C). */
+export function toRealMarcRowFragment(displayText: string): string {
+  return toRealMarcValue(displayText.split('▼').join(MARC_US))
 }
 
 /** REQUIRED_SUBFIELDS 기준 누락된 서브필드 코드 목록. control 필드는 항상 []. */

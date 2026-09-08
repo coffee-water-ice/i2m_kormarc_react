@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MrkField, MrkSubfield } from '../types/mrk'
 import { RAIL_COLOR, TAG_META } from '../types/mrk'
-import { missingSubfields, serializeField } from '../lib/mrk'
+import { MARC_FT, missingSubfields, serializeField, toRealMarcRowFragment } from '../lib/mrk'
 import './FieldEditor.css'
 
 interface FieldEditorProps {
@@ -511,6 +511,48 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
     if ((e.target as HTMLElement).tagName === 'BUTTON') e.preventDefault()
   }
 
+  /** 마우스로 드래그해서 여러 글자/여러 필드에 걸쳐 선택한 뒤 Ctrl+C(또는 우클릭
+   * 복사)로 바로 복사할 때도 "전체 복사" 버튼과 같은 진짜 MARC 바이너리 구분자로
+   * 나가게 한다 — 이전까지는 "전체 복사"를 눌러야만 진짜 0x1F/0x1E가 나갔고, 드래그
+   * 복사는 브라우저 기본 동작대로 화면에 보이는 문자(▼ 등) 그대로 담겼다.
+   *
+   * 선택 범위를 행 단위로 쪼갠다(closestFieldRow + offsetOfPoint — splitFieldAt과
+   * 같은 방식). 각 행에서 실제로 선택된 부분 문자열만 toRealMarcRowFragment로
+   * 바꾸고, 그 행의 "끝까지" 온전히 선택된 경우에만 뒤에 진짜 필드 종료 0x1E(+CRLF)를
+   * 붙인다 — 값 중간에서 드래그가 끊긴 마지막 행은 거기 없는 "필드 끝"을 만들어내면
+   * 안 되므로 아무것도 안 붙인다. Range는 항상 start<=end로 정규화돼 있으므로(드래그
+   * 방향과 무관) loIdx<=hiIdx로 그대로 순회하면 된다 — hiIdx가 아닌 행은 전부
+   * sliceEnd가 그 행의 끝이라 자동으로 매 행 끝에 0x1E가 붙는다(행 사이 구분자를
+   * 따로 안 넣어도 된다). 레코드 종료 0x1D는 여기서 절대 안 붙인다 — 부분 선택은
+   * "레코드 전체"가 아니므로 그건 "전체 복사"만의 몫이다. */
+  function handleContainerCopy(e: React.ClipboardEvent<HTMLDivElement>) {
+    const sel = window.getSelection()
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return
+    const containerEl = containerRef.current
+    if (!containerEl) return
+    const range = sel.getRangeAt(0)
+    const startRow = closestFieldRow(range.startContainer, containerEl)
+    const endRow = closestFieldRow(range.endContainer, containerEl)
+    if (!startRow || !endRow) return
+
+    const loIdx = Number(startRow.dataset.row)
+    const hiIdx = Number(endRow.dataset.row)
+    const parts: string[] = []
+
+    for (let i = loIdx; i <= hiIdx; i++) {
+      const contentEl = rowRefs.current.get(i)
+      if (!contentEl) continue
+      const fullText = stripPlaceholder(contentEl.textContent ?? '')
+      const sliceStart = i === loIdx ? offsetOfPoint(contentEl, range.startContainer, range.startOffset) : 0
+      const sliceEnd = i === hiIdx ? offsetOfPoint(contentEl, range.endContainer, range.endOffset) : fullText.length
+      const marcFragment = toRealMarcRowFragment(fullText.slice(sliceStart, sliceEnd))
+      parts.push(sliceEnd === fullText.length ? marcFragment + MARC_FT + '\r\n' : marcFragment)
+    }
+
+    e.clipboardData.setData('text/plain', parts.join(''))
+    e.preventDefault()
+  }
+
   return (
     <div
       className="field-rows"
@@ -522,6 +564,7 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
       onCompositionEnd={handleContainerCompositionEnd}
       onKeyDown={handleContainerKeyDown}
       onPaste={handleContainerPaste}
+      onCopy={handleContainerCopy}
       onMouseDown={handleContainerMouseDown}
     >
       {fields.map((f, rowIdx) => {
