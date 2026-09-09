@@ -9,8 +9,10 @@
  * 하나뿐이다 — 원본의 system_slug 분기(고도화/기존)는 포팅하지 않는다.
  *
  * 나중에 "B안"(백엔드 job API)으로 옮겨갈 때는 이 파일 전체가 통째로 다른 구현으로
- * 바뀔 대상이다 — hooks/useEvalRun.ts 말고는 아무 데서도 이 모듈을 직접 import하지
- * 않는다(컴포넌트는 항상 useEvalRun()이 내려주는 상태만 본다).
+ * 바뀔 대상이다 — 체크포인트 관련 상태를 직접 구독하는 곳은 hooks/useEvalRun.ts뿐이다
+ * (컴포넌트는 항상 useEvalRun()이 내려주는 상태만 본다). 다만 sha1Hex/slimMeta 두
+ * 순수 유틸만은 lib/batchCheckpoint.ts(일괄 업로드 기능)도 같은 규칙이 필요해서
+ * 함께 가져다 쓴다 — 저장 스키마 자체는 그쪽이 따로 갖는다.
  */
 
 import type { ConvertMeta } from '../types/api'
@@ -48,7 +50,9 @@ const META_KEEP_KEYS = [
   'bundle_source',
 ] as const
 
-function slimMeta(meta: ConvertMeta | undefined): ConvertMeta {
+// lib/batchCheckpoint.ts(일괄 업로드 기능)도 같은 슬림화 규칙이 필요해서 export한다 —
+// meta에 뭘 남길지 기준(META_KEEP_KEYS)이 하나로 유지되게.
+export function slimMeta(meta: ConvertMeta | undefined): ConvertMeta {
   const src = (meta ?? {}) as Record<string, unknown>
   const out: Record<string, unknown> = {}
   for (const k of META_KEEP_KEYS) {
@@ -57,7 +61,8 @@ function slimMeta(meta: ConvertMeta | undefined): ConvertMeta {
   return out as ConvertMeta
 }
 
-async function sha1Hex(input: string): Promise<string> {
+// lib/batchCheckpoint.ts도 같은 해시로 체크포인트 키를 만들어서(접두만 다르게) export한다.
+export async function sha1Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input)
   const digest = await crypto.subtle.digest('SHA-1', data)
   return Array.from(new Uint8Array(digest))

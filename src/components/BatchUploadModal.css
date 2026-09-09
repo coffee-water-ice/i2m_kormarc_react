@@ -1,0 +1,222 @@
+/* IsbnConvert.css의 .card/.btn-primary/.status-banner/.toast 톤을 그대로 따르되
+   (같은 페이지에서 열리므로 그 CSS가 이미 로드돼 있음), 모달 자체(오버레이+패널)와
+   미리보기 표는 이 컴포넌트 전용이라 새로 둔다. 이 프로젝트에 모달 패턴이 아직
+   없어서 처음 만드는 것 — 사서편집 카드와 같은 흰 패널 톤(--card-bg 등)으로
+   맞췄다(사이드바의 어두운 셸 크롬과는 구분되는, 실제 편집 표면이라서). */
+
+.bu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 20, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 60;
+}
+
+.bu-panel {
+  background: var(--card-bg);
+  color: var(--ink);
+  border-radius: 14px;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6);
+  width: min(880px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 22px 26px 26px;
+}
+
+.bu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.bu-header h2 {
+  font-size: 17px;
+  margin: 0;
+}
+.bu-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--ink-dim);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.bu-close:hover {
+  background: #f3f4f8;
+}
+
+.bu-desc {
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  line-height: 1.65;
+  margin: 6px 0 16px;
+}
+
+.bu-upload-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.bu-upload-row button {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  border-radius: 8px;
+  padding: 9px 16px;
+  cursor: pointer;
+  border: 1px solid #e2e4ec;
+  background: #fff;
+  color: var(--ink);
+}
+
+.bu-error {
+  color: var(--accent-rose, #c9536f);
+  font-size: 12.5px;
+  margin: 6px 0;
+}
+
+.bu-summary {
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  margin: 12px 0 8px;
+}
+
+.bu-table-wrap {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid #e2e4ec;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.bu-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.bu-table th,
+.bu-table td {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid #eceef3;
+  white-space: nowrap;
+}
+.bu-table th {
+  background: #fafbfd;
+  color: var(--ink-dim);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+}
+.bu-table .bu-mono {
+  font-family: var(--font-mono);
+}
+.bu-table .bu-status {
+  white-space: normal;
+  min-width: 200px;
+}
+.bu-row-bad {
+  background: #fdf1f3;
+}
+.bu-row-bad td {
+  color: var(--accent-rose, #c9536f);
+}
+
+.bu-confirm-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+.bu-confirm-row button:not(.btn-primary) {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  border-radius: 8px;
+  padding: 9px 16px;
+  cursor: pointer;
+  border: 1px solid #e2e4ec;
+  background: #fff;
+  color: var(--ink);
+}
+
+.bu-resume-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #eef7f1;
+  border: 1px solid #cfe8d8;
+  color: #1f7a4d;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.bu-resume-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.bu-resume-actions button {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  border-radius: 7px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border: 1px solid #cfe8d8;
+  background: transparent;
+  color: #1f7a4d;
+}
+
+.bu-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  margin: 10px 0 16px;
+}
+.bu-progress-track {
+  flex: 1;
+  height: 8px;
+  background: #f0f1f5;
+  border: 1px solid #e2e4ec;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.bu-progress-fill {
+  height: 100%;
+  background: var(--accent-rose, #c9536f);
+  transition: width 0.2s ease;
+}
+.bu-progress button {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  border-radius: 7px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border: 1px solid #e2e4ec;
+  background: #fff;
+  color: var(--ink);
+}
+
+.bu-warn {
+  font-size: 12.5px;
+  color: var(--accent-amber, #d9822b);
+  margin: 4px 0 12px;
+}
+
+.bu-toast {
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+  width: fit-content;
+  background: #1c1f2b;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+}

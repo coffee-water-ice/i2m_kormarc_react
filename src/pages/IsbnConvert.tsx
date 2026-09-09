@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { convertIsbn, mrkToMarc } from '../api/client'
 import type { HistoryRecord } from '../types/history'
 import type { MrkField } from '../types/mrk'
@@ -11,14 +11,19 @@ import {
   extractTitle,
   applyKdcToFields,
   applyHoldingsRegToFields,
-  nextUid,
   missingSubfields,
 } from '../lib/mrk'
+import { buildHistoryRecord } from '../lib/historyRecord'
 import { formatElapsed } from '../lib/format'
 import FieldEditor from '../components/FieldEditor'
 import ClassificationPanel from '../components/ClassificationPanel'
 import HoldingsPanel from '../components/HoldingsPanel'
 import './IsbnConvert.css'
+
+// BatchUploadModal은 xlsx·jszip(수백 KB)을 끌고 오는데, 일괄 업로드를 안 쓰는
+// 대다수 방문에서까지 그 무게를 메인 번들에 얹을 이유가 없다 — "일괄 업로드"
+// 버튼을 실제로 눌렀을 때만 코드가 내려가도록 React.lazy로 분리한다.
+const BatchUploadModal = lazy(() => import('../components/BatchUploadModal'))
 
 /**
  * 사서 편집은 편집 중엔 형식을 검사하지 않는다(자유 텍스트라 뭐든 될 수 있음) — 대신
@@ -61,6 +66,7 @@ export default function IsbnConvert() {
   const [downloadingMrc, setDownloadingMrc] = useState(false)
   const [rawText, setRawText] = useState('')
   const [toast, setToast] = useState<string | null>(null)
+  const [showBatchModal, setShowBatchModal] = useState(false)
   // 056 후보를 고를 때마다 매번 다시 반짝이게(같은 태그를 연달아 골라도 재실행되도록)
   // 태그명이 아니라 매번 값이 바뀌는 토큰으로 들고 있는다.
   const [pulseSignal, setPulseSignal] = useState<{ tag: string; token: number } | null>(null)
@@ -180,28 +186,11 @@ export default function IsbnConvert() {
       setErrorMsg(result.error)
       return
     }
-    const fields = parseMrkText(result.mrk_text ?? '')
-    const meta = result.meta ?? {}
-    const candidates = meta.kdc_candidates ?? []
-    const kdcSelected = candidates[0]?.kdc ?? ''
-    // 모델은 강(2자리)까지만 판단한다(로직은 그대로) — 세목 입력창 자체는 빈 칸으로
-    // 시작한다(2026-09-04까지는 '0'을 기본값으로 넣어놨었는데, 사서가 직접 입력하기
-    // 전엔 빈 칸이 자연스럽다는 요청으로 바뀜). 다만 실제로 적용되는 056 $a 값과
-    // 순위 표시(class-bar-label 등)는 세목이 비어 있어도 '0'을 기본으로 계산한다 —
-    // 강(2자리)만 있는 완성 안 된 분류기호를 그대로 적용하지 않기 위함(pushKdcToFields의
-    // `detail.trim() || '0'`와 같은 규칙). 후보가 없으면(056 미생성) 그대로 둔다.
-    const kdcDetail = ''
-    const initialFields = kdcSelected ? applyKdcToFields(fields, `${kdcSelected}${kdcDetail.trim() || '0'}`) : fields
-    const rec: HistoryRecord = {
-      uid: nextUid(),
-      isbn: result.isbn,
-      title: extractTitle(fields),
-      meta,
-      fields: initialFields,
-      edited: false,
-      kdcSelected,
-      kdcDetail,
-    }
+    // HistoryRecord 조립(mrk_text 파싱 → KDC 초기값 계산 → 049 적용까지)은
+    // lib/historyRecord.ts의 buildHistoryRecord로 뽑아냈다 — 일괄 업로드
+    // (useBatchUpload.ts)도 같은 함수를 써서 수동 변환과 배치 변환 결과가
+    // 100% 같은 모양이 되게 한다(049만 옵션으로 다름).
+    const rec = buildHistoryRecord(result)
     setHistory((h) => [...h, rec])
     setCurrentUid(rec.uid)
     setShowRaw(false)
@@ -348,6 +337,9 @@ export default function IsbnConvert() {
             <button className="btn-primary" onClick={handleConvert} disabled={converting}>
               {converting ? '변환 중...' : '변환 실행'}
             </button>
+            <button type="button" onClick={() => setShowBatchModal(true)}>
+              📤 일괄 업로드
+            </button>
           </div>
           {converting && (
             // 변환은 몇 초~수십 초 걸려서(GPT 호출 포함) 그냥 기다리기 심심하니까 —
@@ -452,6 +444,11 @@ export default function IsbnConvert() {
       </div>
 
       {toast && <div className="toast">{toast}</div>}
+      {showBatchModal && (
+        <Suspense fallback={<div className="bu-loading-overlay">불러오는 중...</div>}>
+          <BatchUploadModal onClose={() => setShowBatchModal(false)} />
+        </Suspense>
+      )}
     </div>
   )
 }
