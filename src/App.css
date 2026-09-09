@@ -104,6 +104,80 @@
   flex-direction: column;
   gap: 8px;
 }
+
+/* "단건 변환"/"일괄 변환" 서브 토글 — app-nav-toggle과 같은 톤이지만 폭 전체를
+   차지하는 한 줄짜리 버튼(오른쪽 끝에 개수·화살표)이라 별도로 둔다. */
+.app-nav-subtoggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 6px 8px;
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.app-nav-subtoggle:hover,
+.app-nav-subtoggle.active {
+  background: var(--shell-bg2);
+  color: var(--text-light);
+}
+.app-nav-subtoggle .count {
+  background: var(--shell-bg);
+  border-radius: 20px;
+  padding: 1px 7px;
+  font-size: 10px;
+  margin-left: auto;
+  margin-right: 6px;
+}
+.app-nav-subtoggle .chev {
+  font-size: 8px;
+}
+
+/* "배치 N" — 일괄 변환 목록 안의 배치 하나. 서브 토글보다 한 단 더 들여쓴다. */
+.app-nav-batch {
+  display: flex;
+  flex-direction: column;
+}
+.app-nav-batchtoggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 6px 8px 6px 16px;
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.app-nav-batchtoggle:hover,
+.app-nav-batchtoggle.active {
+  background: var(--shell-bg2);
+  color: var(--text-light);
+}
+.app-nav-batchtoggle .count {
+  background: var(--shell-bg);
+  border-radius: 20px;
+  padding: 1px 6px;
+  font-size: 10px;
+  margin-left: auto;
+  margin-right: 6px;
+}
+.app-nav-batchtoggle .chev {
+  font-size: 8px;
+}
+
+.history-list.nested {
+  margin-left: 12px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-dark);
+}
 .history-empty {
   font-size: 11.5px;
   color: var(--text-faint);

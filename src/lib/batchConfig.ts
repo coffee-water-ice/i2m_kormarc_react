@@ -18,3 +18,12 @@ export const UPLOAD_COLUMNS = {
   regNo: '등록번호',
   isbn: 'ISBN',
 } as const
+
+/** 업로드한 순서 그대로("배치 1"이 가장 먼저 올린 것) 매기는 배치 이름 — 사이드바
+ * (App.tsx, "일괄 변환" 목록)와 일괄 저장 화면(BatchSaveModal, "배치" 열)이 같은
+ * 번호를 봐야 하므로 여기 하나로 고정한다. useBatchUpload().runs 배열의 index를
+ * 그대로 넘기면 된다(runs는 생성 순으로 쌓이고 지난 실행도 안 지워지므로 index가
+ * 곧 업로드 순번이다). */
+export function batchLabel(index: number): string {
+  return `배치 ${index + 1}`
+}

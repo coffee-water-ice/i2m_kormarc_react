@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useIsbnHistory } from '../context/isbnHistory'
 import { useBatchUpload, type BatchRun } from '../hooks/useBatchUpload'
 import { saveBatchAsFiles } from '../lib/batchExport'
+import { batchLabel } from '../lib/batchConfig'
 import './BatchUploadModal.css'
 
 interface BatchSaveModalProps {
@@ -14,6 +15,7 @@ const STATUS_LABEL: Record<BatchRun['status'], string> = {
   running: '진행 중',
   paused: '일시정지',
   'stopped-gpt': '중단됨',
+  cancelled: '취소됨',
   done: '완료',
 }
 
@@ -25,9 +27,8 @@ function formatTime(iso: string): string {
 
 function statusText(run: BatchRun): string {
   const base = STATUS_LABEL[run.status]
-  return run.status === 'running' || run.status === 'paused' || run.status === 'stopped-gpt'
-    ? `${base} (${run.done}/${run.total})`
-    : base
+  const showProgress = run.status === 'running' || run.status === 'paused' || run.status === 'stopped-gpt' || run.status === 'cancelled'
+  return showProgress ? `${base} (${run.done}/${run.total})` : base
 }
 
 /**
@@ -114,6 +115,7 @@ export default function BatchSaveModal({ onClose }: BatchSaveModalProps) {
                       aria-label="전체 선택"
                     />
                   </th>
+                  <th>배치</th>
                   <th>건수</th>
                   <th>첫 등록번호</th>
                   <th>저장시간</th>
@@ -121,11 +123,12 @@ export default function BatchSaveModal({ onClose }: BatchSaveModalProps) {
                 </tr>
               </thead>
               <tbody>
-                {run.runs.map((r) => (
+                {run.runs.map((r, i) => (
                   <tr key={r.id}>
                     <td>
                       <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
                     </td>
+                    <td>{batchLabel(i)}</td>
                     <td>{r.total}건</td>
                     <td className="bu-mono">{r.rows[0]?.regNo ?? '—'}</td>
                     <td>{formatTime(r.updatedAt)}</td>

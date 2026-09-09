@@ -201,6 +201,11 @@
   background: #fff;
   color: var(--ink);
 }
+.bu-progress button.bu-cancel {
+  color: var(--accent-rose, #c9536f);
+  border-color: #f0c9d3;
+  background: #fdf1f3;
+}
 
 .bu-warn {
   font-size: 12.5px;

@@ -60,7 +60,8 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
     const cur = active?.status ?? null
     const prev = prevStatusRef.current
     prevStatusRef.current = cur
-    const justFinished = (prev === 'running' || prev === 'paused') && (cur === 'done' || cur === 'stopped-gpt')
+    const justFinished =
+      (prev === 'running' || prev === 'paused') && (cur === 'done' || cur === 'stopped-gpt' || cur === 'cancelled')
     if (!justFinished || !active) return
     const successes = active.entries.filter((e) => e.record)
     const last = successes[successes.length - 1]
@@ -237,6 +238,9 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
                     재개
                   </button>
                 )}
+                <button type="button" className="bu-cancel" onClick={() => run.cancel(active.id)}>
+                  취소
+                </button>
               </div>
             )}
 
@@ -249,6 +253,12 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
                 ⛔ {active.done}건 시점에 OpenAI 호출이 실패했습니다 — {active.blockDetail}
                 <br />
                 여기까지 처리된 {active.done}건은 사이드바에 반영돼 있어요.
+              </div>
+            )}
+
+            {active.status === 'cancelled' && (
+              <div className="status-banner">
+                ⏹️ {active.done}건 시점에 취소했어요 — 여기까지 처리된 {active.done}건은 사이드바에 반영돼 있어요.
               </div>
             )}
 
@@ -278,7 +288,7 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
               </div>
             )}
 
-            {(active.status === 'done' || active.status === 'stopped-gpt') && (
+            {(active.status === 'done' || active.status === 'stopped-gpt' || active.status === 'cancelled') && (
               <div className="bu-confirm-row">
                 <button type="button" className="btn-primary" onClick={handleStartNewBatch}>
                   새 배치 시작

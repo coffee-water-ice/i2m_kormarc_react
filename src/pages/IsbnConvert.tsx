@@ -4,8 +4,6 @@ import type { HistoryRecord } from '../types/history'
 import type { MrkField } from '../types/mrk'
 import { useIsbnHistory } from '../context/isbnHistory'
 import {
-  parseMrkText,
-  serializeRecord,
   serializeRecordAsMarcBinary,
   serializeRecordForMarcExport,
   extractTitle,
@@ -63,9 +61,7 @@ export default function IsbnConvert() {
   const [isbn, setIsbn] = useState('')
   const [converting, setConverting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [showRaw, setShowRaw] = useState(false)
   const [downloadingMrc, setDownloadingMrc] = useState(false)
-  const [rawText, setRawText] = useState('')
   const [toast, setToast] = useState<string | null>(null)
   const [showBatchModal, setShowBatchModal] = useState(false)
   const [showBatchSaveModal, setShowBatchSaveModal] = useState(false)
@@ -153,13 +149,14 @@ export default function IsbnConvert() {
     setHistory((h) => h.map((r) => (r.uid === uid ? { ...r, ...patch } : r)))
   }
 
-  /** "저장" 버튼 — 지금까지의 초안을 실제 변환 내역(history)에 확정 반영한다. 저장
-   * 전에 형식을 검사해서, 문제가 있으면 저장하지 않고 그 행으로 스크롤+반짝임을 준다. */
+  /** "수정" 버튼(예전 이름 "저장") — 지금까지의 초안을 실제 변환 내역(history)에
+   * 확정 반영한다. 반영 전에 형식을 검사해서, 문제가 있으면 반영하지 않고 그 행으로
+   * 스크롤+반짝임을 준다. */
   function handleSaveDraft() {
     if (!current) return
     const issue = findSaveBlockingIssue(draftFields)
     if (issue) {
-      showToast(`저장할 수 없어요 — ${issue.tag} 필드: ${issue.reason}`)
+      showToast(`수정할 수 없어요 — ${issue.tag} 필드: ${issue.reason}`)
       setPulseSignal((s) => ({ tag: issue.tag, token: (s?.token ?? 0) + 1 }))
       return
     }
@@ -170,7 +167,7 @@ export default function IsbnConvert() {
       edited: true,
       title: extractTitle(draftFields),
     })
-    showToast('사서 편집 내용을 저장했어요.')
+    showToast('사서 편집 내용을 수정했어요.')
   }
 
   async function handleConvert() {
@@ -195,13 +192,9 @@ export default function IsbnConvert() {
     const rec = buildHistoryRecord(result)
     setHistory((h) => [...h, rec])
     setCurrentUid(rec.uid)
-    setShowRaw(false)
   }
 
   const candidates = current?.meta.kdc_candidates ?? []
-  // 아직 저장 전인 draftFields를 그대로 직렬화한다 — 복사/다운로드/원본 텍스트 미리보기
-  // 모두 "지금 화면에 보이는 대로"를 내보내야 자연스럽다(저장 여부와 무관하게).
-  const finalMrk = serializeRecord(draftFields)
 
   /** 라디오 선택/세목 입력 결과를 draft의 056 $a에 즉시 반영(저장 전까지는 초안일 뿐).
    * 세목 칸이 비어 있으면(사용자가 지웠거나) '0'을 기본값으로 쓴다 — 강(2자리)만
@@ -239,28 +232,14 @@ export default function IsbnConvert() {
     setDraftFields((f) => applyHoldingsRegToFields(f, value))
   }
 
-  function handleDownload() {
-    if (!current) return
-    const blob = new Blob([finalMrk], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${current.isbn}.mrk`
-    a.click()
-    URL.revokeObjectURL(url)
-    showToast('.mrk 파일을 내려받았어요.')
-  }
-
   /** 진짜 바이너리 MARC(.mrc, ISO 2709) 다운로드 — 백엔드의 /api/mrk-to-marc로 지금
    * 화면에 있는 mrk 텍스트(저장 여부와 무관하게 draft 그대로)를 보내서 그 자리에서
    * 새로 인코딩받는다. 클라이언트엔 MARC 인코더가 없어서(직접 구현하면 ISO 2709
    * 포맷을 통째로 새로 짜야 함 — pymarc가 이미 하는 일을 중복 구현하는 셈) 백엔드에
    * 위임했다 — 그래서 사서 편집에서 고친 내용도 그대로 반영된다.
-   * finalMrk가 아니라 serializeRecordForMarcExport(draftFields)를 보낸다 — 둘 다
-   * "$" 관례 텍스트라 형태는 같지만, 원화 표기만 다르다(finalMrk는 화면에 보이는
-   * 유니코드 ₩ 그대로, 이건 실제 남산마크 원본과 같은 백슬래시로 바꿔서 보냄) —
-   * 진짜 바이너리로 나가는 파일이니 실제 MARC 바이트와 일치해야 한다(lib/mrk.ts
-   * 상단 WON_SIGN 코멘트 참고). */
+   * serializeRecordForMarcExport(draftFields)를 보낸다 — 화면에 보이는 유니코드 ₩가
+   * 아니라 실제 남산마크 원본과 같은 백슬래시로 바꿔서 보냄(진짜 바이너리로 나가는
+   * 파일이니 실제 MARC 바이트와 일치해야 한다 — lib/mrk.ts 상단 WON_SIGN 코멘트 참고). */
   async function handleDownloadMrc() {
     if (!current) return
     setDownloadingMrc(true)
@@ -299,23 +278,6 @@ export default function IsbnConvert() {
   function handleCopyLine(line: string) {
     navigator.clipboard.writeText(line)
     showToast('해당 필드를 복사했어요.')
-  }
-
-  function handleOpenRaw() {
-    if (!showRaw) setRawText(finalMrk)
-    setShowRaw((v) => !v)
-  }
-
-  function handleApplyRaw() {
-    const parsed = parseMrkText(rawText)
-    if (parsed.length === 0) {
-      showToast('파싱할 수 있는 필드를 찾지 못했어요. "=245  00$a..." 형식인지 확인해주세요.')
-      return
-    }
-    pushUndoSnapshot()
-    setDraftFields(parsed)
-    setShowRaw(false)
-    showToast('원본 텍스트를 편집 화면에 반영했어요 — 저장 버튼을 눌러야 확정돼요.')
   }
 
   const elapsedMs = current?.meta.elapsed_ms
@@ -386,13 +348,9 @@ export default function IsbnConvert() {
                 </div>
                 <div className="card-actions">
                   <button className="btn-save" onClick={handleSaveDraft} disabled={!dirty}>
-                    💾 저장
-                  </button>
-                  <button className={'raw-toggle' + (showRaw ? ' active' : '')} onClick={handleOpenRaw}>
-                    ⇄ 원본 텍스트
+                    ✏️ 수정
                   </button>
                   <button onClick={handleCopyAll}>⧉ 전체 복사</button>
-                  <button onClick={handleDownload}>↓ .mrk</button>
                   <button
                     className="mrc"
                     onClick={handleDownloadMrc}
@@ -403,23 +361,6 @@ export default function IsbnConvert() {
                   </button>
                 </div>
               </div>
-
-              {showRaw && (
-                <div className="raw-panel">
-                  <p>여기서 직접 고친 뒤 아래 버튼으로 편집 화면에 반영할 수 있어요.</p>
-                  <textarea
-                    value={rawText}
-                    spellCheck={false}
-                    onChange={(e) => setRawText(e.target.value)}
-                  />
-                  <div className="raw-actions">
-                    <button className="primary" onClick={handleApplyRaw}>
-                      구조화된 편집에 반영
-                    </button>
-                    <button onClick={() => setShowRaw(false)}>닫기</button>
-                  </div>
-                </div>
-              )}
 
               <FieldEditor
                 fields={draftFields}

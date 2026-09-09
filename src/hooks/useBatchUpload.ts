@@ -30,7 +30,7 @@ import {
   type BatchResultEntry,
 } from '../lib/batchCheckpoint'
 
-export type BatchUploadStatus = 'idle' | 'preflight-blocked' | 'running' | 'paused' | 'stopped-gpt' | 'done'
+export type BatchUploadStatus = 'idle' | 'preflight-blocked' | 'running' | 'paused' | 'stopped-gpt' | 'cancelled' | 'done'
 
 export interface BatchUploadEntry {
   row: UploadRow
@@ -215,6 +215,18 @@ function pause(): void {
   pauseRequested = true
 }
 
+/** 진행 중/일시정지 실행을 완전히 멈춘다 — pause()와 달리 "이어서 계속"이 아니라
+ * "여기서 그만"이라는 의도다. 지금까지 변환된 항목(entries)은 버리지 않는다 —
+ * 이미 사이드바에 반영된 진짜 변환 결과라 지울 이유가 없고, "일괄 저장" 화면에서
+ * 이 실행을 골라 그 항목들만 내보낼 수도 있어야 하기 때문. 토큰을 올려서 그 사이
+ * 도착하는 진행 중이던 fetch 응답이 있어도 상태를 더 안 건드리게 막는다. */
+function cancel(runId: string): void {
+  const cur = runTokens.get(runId) ?? 0
+  runTokens.set(runId, cur + 1)
+  pauseRequested = false
+  updateRun(runId, { status: 'cancelled' })
+}
+
 function discardResumable(): void {
   if (state.resumable) deleteBatchCheckpoint(state.resumable.key)
   setState({ resumable: findResumableBatchCheckpoint() })
@@ -231,6 +243,7 @@ export interface BatchUploadActions {
   start: (rows: UploadRow[]) => void
   resume: () => void
   pause: () => void
+  cancel: (runId: string) => void
   discardResumable: () => void
   startNewBatch: () => void
 }
@@ -239,5 +252,5 @@ export interface BatchUploadActions {
 export function useBatchUpload(): BatchUploadState & { active: BatchRun | null } & BatchUploadActions {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot)
   const active = snapshot.activeRunId ? (snapshot.runs.find((r) => r.id === snapshot.activeRunId) ?? null) : null
-  return { ...snapshot, active, start, resume, pause, discardResumable, startNewBatch }
+  return { ...snapshot, active, start, resume, pause, cancel, discardResumable, startNewBatch }
 }

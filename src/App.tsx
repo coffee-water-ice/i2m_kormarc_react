@@ -2,6 +2,8 @@ import { useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import type { HistoryRecord } from './types/history'
 import type { IsbnHistoryContextValue } from './context/isbnHistory'
+import { useBatchUpload } from './hooks/useBatchUpload'
+import { batchLabel } from './lib/batchConfig'
 import './App.css'
 
 /**
@@ -11,6 +13,13 @@ import './App.css'
  * 토글 버튼 + 드롭다운으로 붙여달라는 요청 때문에 여기(App.tsx)로 끌어올렸다 — 사이드바가
  * 페이지 전환과 무관하게 항상 떠 있으므로, 드롭다운도 여기서 그려야 한다. 페이지 쪽은
  * context/isbnHistory.ts의 useIsbnHistory() 훅으로 이 상태를 읽고 쓴다(Outlet context).
+ *
+ * "ISBN 변환" 드롭다운은 다시 "단건 변환"/"일괄 변환" 두 갈래로 나뉜다(요청 6) —
+ * 단건 변환은 ISBN 입력창으로 만든 레코드만, 일괄 변환은 "배치 N"(업로드한 순서대로)
+ * 아래에 그 배치가 만든 레코드만 보여준다. 이 구분은 HistoryRecord 자체에 필드를
+ * 추가하지 않고, hooks/useBatchUpload.ts의 runs(각 배치가 만든 record.uid 목록)와
+ * history를 uid로 대조해서 매 렌더마다 계산한다 — "이 레코드가 어느 배치 출신인지"를
+ * 저장해두지 않아도 항상 일관되게 나온다.
  *
  * 드롭다운은 바깥 클릭/Esc가 아니라 토글 버튼을 다시 눌렀을 때만 닫힌다 — 항목을
  * 고르는 동작(selectRecord)도 열림 상태를 건드리지 않는다(요구사항: 항목 선택으로
@@ -24,8 +33,12 @@ export default function App() {
   const [history, setHistory] = useState<HistoryRecord[]>([])
   const [currentUid, setCurrentUid] = useState<number | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [singleOpen, setSingleOpen] = useState(false)
+  const [batchListOpen, setBatchListOpen] = useState(false)
+  const [openBatchId, setOpenBatchId] = useState<string | null>(null)
   const dirtyRef = useRef(false)
   const navigate = useNavigate()
+  const batchRun = useBatchUpload()
 
   function selectRecord(uid: number) {
     if (uid === currentUid) {
@@ -44,6 +57,35 @@ export default function App() {
 
   const outletContext: IsbnHistoryContextValue = { history, setHistory, currentUid, setCurrentUid, dirtyRef }
 
+  // 배치가 만든 record.uid 전체 — 이 집합에 없으면 "단건 변환"으로 분류한다.
+  const batchUids = new Set(
+    batchRun.runs.flatMap((r) => r.entries.filter((e) => e.record).map((e) => e.record!.uid)),
+  )
+  const singleRecords = history.filter((rec) => !batchUids.has(rec.uid))
+  function recordsOfBatch(run: (typeof batchRun.runs)[number]): HistoryRecord[] {
+    const uids = new Set(run.entries.filter((e) => e.record).map((e) => e.record!.uid))
+    return history.filter((rec) => uids.has(rec.uid))
+  }
+
+  function renderRecordButton(rec: HistoryRecord) {
+    return (
+      <button
+        key={rec.uid}
+        className={'history-item' + (rec.uid === currentUid ? ' active' : '')}
+        onClick={() => selectRecord(rec.uid)}
+      >
+        <div className="hi-title">
+          {/* edited는 "저장을 한 번이라도 눌렀는지"를 뜻한다(IsbnConvert.tsx의
+              handleSaveDraft에서만 true가 됨) — 아직 한 번도 저장 안 한
+              항목을 눈에 띄게 표시해서 사서가 놓치지 않게 한다. */}
+          {!rec.edited && <span className="unsaved-dot" data-tooltip="아직 저장하지 않음" />}
+          {rec.title}
+        </div>
+        <div className="hi-meta">{rec.isbn}</div>
+      </button>
+    )
+  }
+
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
@@ -51,6 +93,10 @@ export default function App() {
         <nav className="app-nav">
           <NavLink to="/" end className={({ isActive }) => 'app-nav-link' + (isActive ? ' active' : '')}>
             홈 (시스템 상태)
+          </NavLink>
+
+          <NavLink to="/eval" className={({ isActive }) => 'app-nav-link' + (isActive ? ' active' : '')}>
+            평가시스템
           </NavLink>
 
           <div className="app-nav-group">
@@ -76,33 +122,68 @@ export default function App() {
 
             {historyOpen && (
               <div className="app-nav-history">
-                {history.length === 0 && <div className="history-empty">아직 변환 내역이 없어요.</div>}
-                {/* 최신순(위)이 아니라 추가된 순서 그대로 — 새 항목은 아래로 쌓인다. */}
-                <div className="history-list">
-                  {history.map((rec) => (
-                    <button
-                      key={rec.uid}
-                      className={'history-item' + (rec.uid === currentUid ? ' active' : '')}
-                      onClick={() => selectRecord(rec.uid)}
-                    >
-                      <div className="hi-title">
-                        {/* edited는 "저장을 한 번이라도 눌렀는지"를 뜻한다(IsbnConvert.tsx의
-                            handleSaveDraft에서만 true가 됨) — 아직 한 번도 저장 안 한
-                            항목을 눈에 띄게 표시해서 사서가 놓치지 않게 한다. */}
-                        {!rec.edited && <span className="unsaved-dot" data-tooltip="아직 저장하지 않음" />}
-                        {rec.title}
-                      </div>
-                      <div className="hi-meta">{rec.isbn}</div>
-                    </button>
-                  ))}
-                </div>
+                {/* ── 단건 변환 ── */}
+                <button
+                  type="button"
+                  className={'app-nav-subtoggle' + (singleOpen ? ' active' : '')}
+                  onClick={() => setSingleOpen((v) => !v)}
+                >
+                  <span>단건 변환</span>
+                  <span className="count">{singleRecords.length}</span>
+                  <span className="chev">{singleOpen ? '▲' : '▼'}</span>
+                </button>
+                {singleOpen && (
+                  <div className="history-list">
+                    {singleRecords.length === 0 && <div className="history-empty">단건 변환 내역이 없어요.</div>}
+                    {singleRecords.map(renderRecordButton)}
+                  </div>
+                )}
+
+                {/* ── 일괄 변환 ── */}
+                <button
+                  type="button"
+                  className={'app-nav-subtoggle' + (batchListOpen ? ' active' : '')}
+                  onClick={() => setBatchListOpen((v) => !v)}
+                >
+                  <span>일괄 변환</span>
+                  <span className="count">{batchRun.runs.length}</span>
+                  <span className="chev">{batchListOpen ? '▲' : '▼'}</span>
+                </button>
+                {batchListOpen && (
+                  <div className="history-list">
+                    {batchRun.runs.length === 0 && (
+                      <div className="history-empty">아직 일괄 업로드한 배치가 없어요.</div>
+                    )}
+                    {batchRun.runs.map((r, i) => {
+                      const records = recordsOfBatch(r)
+                      const isOpen = openBatchId === r.id
+                      return (
+                        <div key={r.id} className="app-nav-batch">
+                          <button
+                            type="button"
+                            className={'app-nav-batchtoggle' + (isOpen ? ' active' : '')}
+                            onClick={() => setOpenBatchId((id) => (id === r.id ? null : r.id))}
+                          >
+                            <span>{batchLabel(i)}</span>
+                            <span className="count">{records.length}</span>
+                            <span className="chev">{isOpen ? '▲' : '▼'}</span>
+                          </button>
+                          {isOpen && (
+                            <div className="history-list nested">
+                              {records.length === 0 && (
+                                <div className="history-empty">아직 변환된 항목이 없어요.</div>
+                              )}
+                              {records.map(renderRecordButton)}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
-
-          <NavLink to="/eval" className={({ isActive }) => 'app-nav-link' + (isActive ? ' active' : '')}>
-            평가시스템
-          </NavLink>
         </nav>
         <div className="app-sidebar-foot">
           React 준비 단계 — 로컬 전용, 아직 GitHub에 올리지 않음.
