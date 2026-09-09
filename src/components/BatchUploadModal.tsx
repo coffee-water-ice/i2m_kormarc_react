@@ -3,8 +3,7 @@ import { useIsbnHistory } from '../context/isbnHistory'
 import { downloadUploadTemplate } from '../lib/excelTemplate'
 import { parseUploadFile, rowHasIssue, validRowsOnly, type UploadRow, type RowIssue } from '../lib/excelUpload'
 import { MAX_BATCH_SIZE, UPLOAD_COLUMNS } from '../lib/batchConfig'
-import { useBatchUpload } from '../hooks/useBatchUpload'
-import { saveBatchAsFiles } from '../lib/batchExport'
+import { useBatchUpload, type BatchUploadStatus } from '../hooks/useBatchUpload'
 import './BatchUploadModal.css'
 
 interface BatchUploadModalProps {
@@ -12,41 +11,63 @@ interface BatchUploadModalProps {
 }
 
 /**
- * "일괄 업로드" 모달 — 3단계(업로드→미리보기/확인→진행)를 한 모달 안에서 전환한다.
- * 이 프로젝트에 모달 패턴이 아직 없어서 새로 만들었다(오버레이+흰 패널, IsbnConvert.css의
- * .card 톤/토큰 재사용). 진행 로직 자체는 hooks/useBatchUpload.ts(모듈 레벨 싱글턴)가
- * 들고 있어서, 이 모달이 닫혀도 배치는 계속 진행된다 — 나중에 다시 열면 이어서 보인다
- * (평가시스템의 EvalSystem.tsx/useEvalRun.ts와 같은 관계).
+ * "일괄 업로드" 모달 — 업로드 → 미리보기/확인 → 진행 화면을 한 모달 안에서 전환한다.
+ * 진행 로직 자체는 hooks/useBatchUpload.ts(모듈 레벨 싱글턴)가 들고 있어서, 이 모달이
+ * 닫혀도 배치는 계속 진행된다.
+ *
+ * 완료되면(요청 사양) 이 모달이 "일괄 저장" 버튼을 보여주는 대신 스스로 닫히고 사서
+ * 편집 화면으로 돌아간다 — 방금 만든 레코드 중 마지막 것을 바로 펼쳐서, 사서가 곧장
+ * 확인·편집·저장할 수 있게 한다("일괄 저장"은 이제 이 모달이 아니라 IsbnConvert.tsx의
+ * 별도 "일괄 저장" 버튼/BatchSaveModal이 맡는다). 다만 이미 끝난 실행을 다시 보려고
+ * "일괄 업로드"를 또 누르면(재마운트) 그때는 자동으로 닫지 않고 요약을 그대로 보여준다
+ * — prevStatusRef로 "지금 이 마운트에서 방금 진행 중→완료로 바뀐 경우"만 가려낸다.
  */
 export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
-  const { setHistory } = useIsbnHistory()
+  const { setHistory, setCurrentUid } = useIsbnHistory()
   const run = useBatchUpload()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const pushedUidsRef = useRef<Set<number>>(new Set())
+  const prevStatusRef = useRef<BatchUploadStatus | null>(null)
 
   const [rows, setRows] = useState<UploadRow[]>([])
   const [issues, setIssues] = useState<RowIssue[]>([])
   const [parseError, setParseError] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
-  const [savingFiles, setSavingFiles] = useState(false)
 
   const hasParsed = rows.length > 0 || issues.length > 0
-  const started = run.status !== 'idle'
+  const active = run.active
+  const started = active !== null
 
-  function showToast(msg: string) {
-    setToast(msg)
-    window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 2600)
-  }
-
-  // 완료된 항목이 생기는 즉시(새로고침 없이) 왼쪽 사이드바 변환 내역에 반영한다 —
-  // 이미 반영한 uid는 pushedUidsRef로 걸러서 중복 추가를 막는다.
+  // 완료된 항목이 생기는 즉시(새로고침 없이) 왼쪽 사이드바 변환 내역에 반영한다.
+  // "이미 반영했는지"는 컴포넌트 로컬 ref가 아니라 history 자체를 기준으로 판단한다
+  // — 이 모달은 (요청 5에 따라) 같은 실행을 다시 열어볼 때마다 리마운트되는데,
+  // ref로 추적하면 리마운트 때마다 "아직 안 넣은 것처럼" 보여서 같은 레코드가
+  // 사이드바에 중복으로 쌓이는 버그가 있었다(React key 중복 경고로 발견) — history
+  // 안에 그 uid가 실제로 있는지를 매번 다시 확인하는 게 리마운트에 안전하다.
   useEffect(() => {
-    const fresh = run.entries.filter((e) => e.record && !pushedUidsRef.current.has(e.record.uid))
-    if (fresh.length === 0) return
-    for (const e of fresh) pushedUidsRef.current.add(e.record!.uid)
-    setHistory((h) => [...h, ...fresh.map((e) => e.record!)])
+    if (!active) return
+    const freshRecords = active.entries.filter((e): e is typeof e & { record: NonNullable<typeof e.record> } => !!e.record).map((e) => e.record)
+    if (freshRecords.length === 0) return
+    setHistory((h) => {
+      const existingUids = new Set(h.map((r) => r.uid))
+      const toAdd = freshRecords.filter((r) => !existingUids.has(r.uid))
+      return toAdd.length === 0 ? h : [...h, ...toAdd]
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [run.entries])
+  }, [active?.entries])
+
+  // 진행 중/일시정지 → 완료/중단으로 "지금 막" 바뀐 경우에만 자동으로 닫고 사서편집
+  // 화면으로 넘어간다(요청 1) — 이미 끝나 있던 실행을 다시 열어본 경우는 그대로 둔다.
+  useEffect(() => {
+    const cur = active?.status ?? null
+    const prev = prevStatusRef.current
+    prevStatusRef.current = cur
+    const justFinished = (prev === 'running' || prev === 'paused') && (cur === 'done' || cur === 'stopped-gpt')
+    if (!justFinished || !active) return
+    const successes = active.entries.filter((e) => e.record)
+    const last = successes[successes.length - 1]
+    if (last?.record) setCurrentUid(last.record.uid)
+    onClose()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.status])
 
   function handlePickFile() {
     fileInputRef.current?.click()
@@ -70,8 +91,11 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
     setRows([])
     setIssues([])
     setParseError(null)
-    run.reset()
-    pushedUidsRef.current = new Set()
+  }
+
+  function handleStartNewBatch() {
+    run.startNewBatch()
+    handleReupload()
   }
 
   const valid = validRowsOnly(rows, issues)
@@ -81,28 +105,8 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
     run.start(valid)
   }
 
-  async function handleSaveBatch() {
-    const records = run.entries.filter((e) => e.record).map((e) => e.record!)
-    if (records.length === 0) {
-      showToast('저장할 레코드가 없어요.')
-      return
-    }
-    setSavingFiles(true)
-    const result = await saveBatchAsFiles(records)
-    setSavingFiles(false)
-    if (result.mode === 'cancelled') return
-    if (!result.ok) {
-      showToast(`저장 실패 — ${result.error ?? '알 수 없는 오류'}`)
-      return
-    }
-    const modeLabel = result.mode === 'directory' ? '선택한 폴더에 저장했어요' : 'zip 파일로 내려받았어요'
-    const failNote = result.failedIsbns.length > 0 ? ` (${result.failedIsbns.length}건은 MARC 인코딩 실패로 제외됨)` : ''
-    showToast(`MRC 1개 + MRK ${result.savedCount}개를 ${modeLabel}.${failNote}`)
-  }
-
-  const running = run.status === 'running'
-  const paused = run.status === 'paused'
-  const finished = run.status === 'done' || run.status === 'stopped-gpt'
+  const running = active?.status === 'running'
+  const paused = active?.status === 'paused'
 
   return (
     <div className="bu-overlay" onClick={onClose}>
@@ -114,7 +118,7 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
           </button>
         </div>
 
-        {/* ── 재개 배너: 아직 아무것도 안 올렸고, 이전에 하다 만 배치가 있으면 ── */}
+        {/* ── 재개 배너: 아직 아무것도 안 올렸고, 새로고침 전에 하다 만 배치가 있으면 ── */}
         {!started && !hasParsed && run.resumable && (
           <div className="bu-resume-banner">
             <span>
@@ -131,7 +135,7 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
           </div>
         )}
 
-        {/* ── 1단계: 업로드 ── */}
+        {/* ── 업로드/미리보기 단계 ── */}
         {!started && (
           <div className="bu-step">
             <p className="bu-desc">
@@ -198,30 +202,30 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
           </div>
         )}
 
-        {/* ── 2단계: 진행 ── */}
-        {started && (
+        {/* ── 진행/요약 단계 ── */}
+        {started && active && (
           <div className="bu-step">
-            {run.status === 'preflight-blocked' && (
+            {active.status === 'preflight-blocked' && (
               <>
-                <div className="status-banner error">⛔ 실행을 시작하지 않았어요 — {run.blockDetail}</div>
+                <div className="status-banner error">⛔ 실행을 시작하지 않았어요 — {active.blockDetail}</div>
                 <div className="bu-confirm-row">
-                  <button type="button" className="btn-primary" onClick={() => run.start(run.rows)}>
+                  <button type="button" className="btn-primary" onClick={() => run.start(active.rows)}>
                     다시 시도
                   </button>
-                  <button type="button" onClick={handleReupload}>
+                  <button type="button" onClick={handleStartNewBatch}>
                     새 배치 시작
                   </button>
                 </div>
               </>
             )}
 
-            {(running || paused) && run.total > 0 && (
+            {(running || paused) && active.total > 0 && (
               <div className="bu-progress">
                 <div className="bu-progress-track">
-                  <div className="bu-progress-fill" style={{ width: `${Math.round((run.done / run.total) * 100)}%` }} />
+                  <div className="bu-progress-fill" style={{ width: `${Math.round((active.done / active.total) * 100)}%` }} />
                 </div>
                 <span>
-                  {run.done}/{run.total} {paused ? '일시정지됨' : '변환 중...'}
+                  {active.done}/{active.total} {paused ? '일시정지됨' : '변환 중...'}
                 </span>
                 {running && (
                   <button type="button" onClick={() => run.pause()}>
@@ -229,7 +233,7 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
                   </button>
                 )}
                 {paused && (
-                  <button type="button" className="btn-primary" onClick={() => run.start(run.rows)}>
+                  <button type="button" className="btn-primary" onClick={() => run.start(active.rows)}>
                     재개
                   </button>
                 )}
@@ -240,17 +244,18 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
               <p className="bu-warn">⚠️ 브라우저 저장 공간이 부족해 새로고침 시 이어할 수 없어요 — 지금 이 세션은 그대로 진행돼요.</p>
             )}
 
-            {run.status === 'stopped-gpt' && (
+            {active.status === 'stopped-gpt' && (
               <div className="status-banner error">
-                ⛔ {run.done}건 시점에 OpenAI 호출이 실패했습니다 — {run.blockDetail}
+                ⛔ {active.done}건 시점에 OpenAI 호출이 실패했습니다 — {active.blockDetail}
                 <br />
-                여기까지 처리된 {run.done}건은 사이드바에 반영돼 있어요.
+                여기까지 처리된 {active.done}건은 사이드바에 반영돼 있어요.
               </div>
             )}
 
-            {/* 완료 전이라도 지금까지 변환된 항목 목록을 바로 보여준다 — 사이드바에서
-                하나씩 골라 편집할 수 있다는 걸 눈으로 확인시켜주기 위함. */}
-            {run.entries.length > 0 && (
+            {/* 완료된 실행을 다시 열어본 경우에만 여기까지 온다(방금 끝난 경우는 위
+                useEffect가 자동으로 닫아버림) — 지난 실행 요약 + "새 배치 시작"만 제공.
+                "일괄 저장"은 이제 IsbnConvert.tsx의 별도 버튼(BatchSaveModal)에서 한다. */}
+            {active.entries.length > 0 && (
               <div className="bu-table-wrap">
                 <table className="bu-table">
                   <thead>
@@ -261,7 +266,7 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {run.entries.map((e) => (
+                    {active.entries.map((e) => (
                       <tr key={e.row.isbn} className={e.error ? 'bu-row-bad' : undefined}>
                         <td>{e.row.isbn}</td>
                         <td>{e.record?.title ?? '—'}</td>
@@ -273,20 +278,15 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
               </div>
             )}
 
-            {finished && (
+            {(active.status === 'done' || active.status === 'stopped-gpt') && (
               <div className="bu-confirm-row">
-                <button type="button" className="btn-primary" onClick={handleSaveBatch} disabled={savingFiles}>
-                  {savingFiles ? '저장 중...' : '💾 일괄 저장 (MRC 1개 + MRK 파일)'}
-                </button>
-                <button type="button" onClick={handleReupload}>
+                <button type="button" className="btn-primary" onClick={handleStartNewBatch}>
                   새 배치 시작
                 </button>
               </div>
             )}
           </div>
         )}
-
-        {toast && <div className="bu-toast">{toast}</div>}
       </div>
     </div>
   )

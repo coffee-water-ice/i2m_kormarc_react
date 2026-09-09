@@ -20,10 +20,11 @@ import ClassificationPanel from '../components/ClassificationPanel'
 import HoldingsPanel from '../components/HoldingsPanel'
 import './IsbnConvert.css'
 
-// BatchUploadModal은 xlsx·jszip(수백 KB)을 끌고 오는데, 일괄 업로드를 안 쓰는
-// 대다수 방문에서까지 그 무게를 메인 번들에 얹을 이유가 없다 — "일괄 업로드"
-// 버튼을 실제로 눌렀을 때만 코드가 내려가도록 React.lazy로 분리한다.
+// BatchUploadModal/BatchSaveModal은 xlsx·jszip(수백 KB)을 끌고 오는데, 그 기능을
+// 안 쓰는 대다수 방문에서까지 그 무게를 메인 번들에 얹을 이유가 없다 — 버튼을 실제로
+// 눌렀을 때만 코드가 내려가도록 React.lazy로 분리한다.
 const BatchUploadModal = lazy(() => import('../components/BatchUploadModal'))
+const BatchSaveModal = lazy(() => import('../components/BatchSaveModal'))
 
 /**
  * 사서 편집은 편집 중엔 형식을 검사하지 않는다(자유 텍스트라 뭐든 될 수 있음) — 대신
@@ -67,6 +68,7 @@ export default function IsbnConvert() {
   const [rawText, setRawText] = useState('')
   const [toast, setToast] = useState<string | null>(null)
   const [showBatchModal, setShowBatchModal] = useState(false)
+  const [showBatchSaveModal, setShowBatchSaveModal] = useState(false)
   // 056 후보를 고를 때마다 매번 다시 반짝이게(같은 태그를 연달아 골라도 재실행되도록)
   // 태그명이 아니라 매번 값이 바뀌는 토큰으로 들고 있는다.
   const [pulseSignal, setPulseSignal] = useState<{ tag: string; token: number } | null>(null)
@@ -340,6 +342,9 @@ export default function IsbnConvert() {
             <button type="button" onClick={() => setShowBatchModal(true)}>
               📤 일괄 업로드
             </button>
+            <button type="button" onClick={() => setShowBatchSaveModal(true)}>
+              💾 일괄 저장
+            </button>
           </div>
           {converting && (
             // 변환은 몇 초~수십 초 걸려서(GPT 호출 포함) 그냥 기다리기 심심하니까 —
@@ -447,6 +452,11 @@ export default function IsbnConvert() {
       {showBatchModal && (
         <Suspense fallback={<div className="bu-loading-overlay">불러오는 중...</div>}>
           <BatchUploadModal onClose={() => setShowBatchModal(false)} />
+        </Suspense>
+      )}
+      {showBatchSaveModal && (
+        <Suspense fallback={<div className="bu-loading-overlay">불러오는 중...</div>}>
+          <BatchSaveModal onClose={() => setShowBatchSaveModal(false)} />
         </Suspense>
       )}
     </div>
