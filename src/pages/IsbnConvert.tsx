@@ -9,12 +9,14 @@ import {
   extractTitle,
   applyKdcToFields,
   applyHoldingsRegToFields,
+  applyCallNumberToFields,
   missingSubfields,
 } from '../lib/mrk'
 import { buildHistoryRecord } from '../lib/historyRecord'
 import { formatElapsed } from '../lib/format'
 import FieldEditor from '../components/FieldEditor'
 import ClassificationPanel from '../components/ClassificationPanel'
+import CallNumberPanel from '../components/CallNumberPanel'
 import HoldingsPanel from '../components/HoldingsPanel'
 import './IsbnConvert.css'
 
@@ -232,6 +234,27 @@ export default function IsbnConvert() {
     setDraftFields((f) => applyHoldingsRegToFields(f, value))
   }
 
+  // 090(자관청구기호) — 049와 같은 이유로 별도 draft 상태를 안 둔다. $a/$b/$c 세 값
+  // 다 draftFields의 090 필드에서 바로 읽고(없으면 전부 빈 문자열),
+  // applyCallNumberToFields가 타이핑마다 090을 직접 갱신한다(lib/mrk.ts 코멘트 참고 —
+  // 태그 번호 오름차순 위치·지시기호 빈칸/빈칸 고정).
+  const callNumber090 = draftFields.find(
+    (f): f is Extract<MrkField, { kind: 'data' }> => f.kind === 'data' && f.tag === '090',
+  )
+  const classMarkValue = callNumber090?.subfields.find((sf) => sf.code === 'a')?.value ?? ''
+  const authorMarkValue = callNumber090?.subfields.find((sf) => sf.code === 'b')?.value ?? ''
+  const volMarkValue = callNumber090?.subfields.find((sf) => sf.code === 'c')?.value ?? ''
+
+  function handleClassMarkChange(value: string) {
+    setDraftFields((f) => applyCallNumberToFields(f, value, authorMarkValue, volMarkValue))
+  }
+  function handleAuthorMarkChange(value: string) {
+    setDraftFields((f) => applyCallNumberToFields(f, classMarkValue, value, volMarkValue))
+  }
+  function handleVolMarkChange(value: string) {
+    setDraftFields((f) => applyCallNumberToFields(f, classMarkValue, authorMarkValue, value))
+  }
+
   /** 진짜 바이너리 MARC(.mrc, ISO 2709) 다운로드 — 백엔드의 /api/mrk-to-marc로 지금
    * 화면에 있는 mrk 텍스트(저장 여부와 무관하게 draft 그대로)를 보내서 그 자리에서
    * 새로 인코딩받는다. 클라이언트엔 MARC 인코더가 없어서(직접 구현하면 ISO 2709
@@ -382,6 +405,14 @@ export default function IsbnConvert() {
                 detail={draftKdcDetail}
                 onSelect={handleKdcSelect}
                 onDetailChange={handleKdcDetailChange}
+              />
+              <CallNumberPanel
+                classMark={classMarkValue}
+                authorMark={authorMarkValue}
+                volMark={volMarkValue}
+                onClassMarkChange={handleClassMarkChange}
+                onAuthorMarkChange={handleAuthorMarkChange}
+                onVolMarkChange={handleVolMarkChange}
               />
               <HoldingsPanel value={holdingsRegValue} onChange={handleHoldingsRegChange} />
             </div>

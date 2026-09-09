@@ -21,13 +21,13 @@ export default function Home() {
 
   return (
     <div>
-      <h1>I2M KORMARC 통합 변환 시스템 (React 준비)</h1>
+      <h1>I2M KORMARC 통합 변환 시스템</h1>
       <p style={{ color: 'var(--text-dim)' }}>
         왼쪽 사이드바의 "ISBN 변환"(단건/일괄)과 "평가시스템"을 바로 사용할 수 있습니다.
         아래 사용 설명서를 참고하세요.
       </p>
 
-      <h2 style={{ fontSize: 16, marginTop: 28 }}>사용 설명서</h2>
+      <h2 style={{ fontSize: 16, marginTop: 28 }}>ISBN 변환_사용 설명서</h2>
       <div
         style={{
           display: 'grid',

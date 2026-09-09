@@ -234,6 +234,49 @@ export function applyHoldingsRegToFields(fields: MrkField[], regNo: string): Mrk
   return next
 }
 
+/** 090(자관청구기호) 필드를 draft에 반영 — 049와 마찬가지로 ISBN 변환만으로는 알 수
+ * 없는, 사서가 직접 입력해야 하는 값이라 CallNumberPanel의 세 입력창(분류기호/
+ * 저자기호/권·연차기호)이 타이핑마다 이 함수로 draftFields를 갱신한다. 지시기호는
+ * 둘 다 빈칸으로 고정한다(요청 사양). 세 값 다 비어 있으면 기존 090 필드를 아예
+ * 없앤다 — 선택 입력이라 안 쓰면 필드 자체가 없어야 하기 때문. 채워진 값만 해당
+ * 서브필드로 넣는다(예: 저자기호만 비어 있으면 $b 없이 $a·$c만).
+ *
+ * 049(950 다음에 강제로 끼워 넣음)와 달리, 090은 처음 만들어질 때 태그 번호
+ * 오름차순 위치("090" 이상인 첫 필드 앞")에 끼워 넣는다 — 049처럼 위치를 특별
+ * 취급해야 할 요구사항이 없고, 이 방식이 056(있으면 090보다 앞)과 245(090보다 뒤)
+ * 사이에 자연스럽게 들어가면서 056이 아직 없는 레코드(KDC 후보 미생성)에도
+ * 안전하게 동작한다. 이미 090이 있으면(사서가 FieldEditor에서 직접 옮겼을 수도
+ * 있으니) 값만 갱신하고 위치는 그대로 둔다. */
+export function applyCallNumberToFields(
+  fields: MrkField[],
+  classMark: string,
+  authorMark: string,
+  volMark: string,
+): MrkField[] {
+  const idx090 = fields.findIndex((f) => f.tag === '090')
+  const subfields: MrkSubfield[] = []
+  if (classMark.trim()) subfields.push({ code: 'a', value: classMark.trim() })
+  if (authorMark.trim()) subfields.push({ code: 'b', value: authorMark.trim() })
+  if (volMark.trim()) subfields.push({ code: 'c', value: volMark.trim() })
+
+  if (subfields.length === 0) {
+    return idx090 === -1 ? fields : fields.filter((_, i) => i !== idx090)
+  }
+
+  const field090: MrkDataField = { tag: '090', kind: 'data', ind1: ' ', ind2: ' ', subfields }
+
+  if (idx090 !== -1) {
+    const next = [...fields]
+    next[idx090] = field090
+    return next
+  }
+
+  const insertAt = fields.findIndex((f) => f.tag >= '090')
+  const next = [...fields]
+  next.splice(insertAt === -1 ? fields.length : insertAt, 0, field090)
+  return next
+}
+
 let _nextUid = 1
 /** 프론트 전용 임시 id 발급 — 백엔드와 무관, 변환 내역/컴포넌트 key 용도. */
 export function nextUid(): number {
