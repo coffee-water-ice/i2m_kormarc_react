@@ -179,7 +179,14 @@ export function extractTitle(fields: MrkField[]): string {
   if (!f245) return '(제목 없음)'
   const a = f245.subfields.find((sf) => sf.code === 'a')
   if (!a) return '(제목 없음)'
-  return a.value.trim().replace(/\s*\/\s*$/, '') || '(제목 없음)'
+  // 245 $a 값 끝에는 진짜 제목이 아니라 다음 서브필드로 이어지는 ISBD 구두점이
+  // 그대로 남아있을 수 있다 — 백엔드가 mrk_text를 만들 때 그 구두점을 "다음
+  // 서브필드 앞"이 아니라 "이 서브필드 값 끝"에 붙이는 MARC 관례를 그대로
+  // 따르기 때문이다(예: core/fields/marc_245.py의 `f" :$b {b_part}"` — $b로
+  // 이어지는 콜론이 $a 쪽 텍스트에 남는다; $d 앞의 '/'도 동일한 이유). 그
+  // 구두점은 서브필드끼리의 연결 표시일 뿐 제목 자체의 일부가 아니므로,
+  // "책 이름"으로 보여줄 때는 걷어낸다.
+  return a.value.trim().replace(/\s*[/:;,.]\s*$/, '') || '(제목 없음)'
 }
 
 /** 056 필드의 $a 값을 교체(없으면 새로 만듦) — KDC 후보 선택 결과를 최종 출력에 반영할 때 사용. */

@@ -330,6 +330,13 @@ export default function IsbnConvert() {
             <button type="button" onClick={() => setShowBatchSaveModal(true)}>
               💾 일괄 저장
             </button>
+            {/* 변환완료/소요시간/GPT 토큰 안내 — 예전엔 버튼 줄 아래 별도 배너였는데,
+                "일괄 저장" 옆으로 옮겨달라는 요청으로 같은 줄(.isbn-row)에 둔다. */}
+            {!errorMsg && current && elapsedMs !== undefined && (
+              <div className="status-banner">
+                ● 변환 완료 · 소요시간 {formatElapsed(elapsedMs)} · GPT 토큰 {totalTokens.toLocaleString()}개
+              </div>
+            )}
           </div>
           {converting && (
             // 변환은 몇 초~수십 초 걸려서(GPT 호출 포함) 그냥 기다리기 심심하니까 —
@@ -343,11 +350,6 @@ export default function IsbnConvert() {
             </div>
           )}
           {errorMsg && <div className="status-banner error">⛔ {errorMsg}</div>}
-          {!errorMsg && current && elapsedMs !== undefined && (
-            <div className="status-banner">
-              ● 변환 완료 · 소요시간 {formatElapsed(elapsedMs)} · GPT 토큰 {totalTokens.toLocaleString()}개
-            </div>
-          )}
         </div>
 
         {!current && !converting && (

@@ -92,7 +92,7 @@ export default function App() {
         <div className="app-sidebar-head">2026 I2M KORMARC</div>
         <nav className="app-nav">
           <NavLink to="/" end className={({ isActive }) => 'app-nav-link' + (isActive ? ' active' : '')}>
-            홈 (시스템 상태)
+            홈
           </NavLink>
 
           <NavLink to="/eval" className={({ isActive }) => 'app-nav-link' + (isActive ? ' active' : '')}>
@@ -185,9 +185,6 @@ export default function App() {
             )}
           </div>
         </nav>
-        <div className="app-sidebar-foot">
-          React 준비 단계 — 로컬 전용, 아직 GitHub에 올리지 않음.
-        </div>
       </aside>
       <main className="app-main">
         <Outlet context={outletContext} />

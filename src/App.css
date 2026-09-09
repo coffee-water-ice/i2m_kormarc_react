@@ -231,15 +231,6 @@
   font-family: var(--font-mono);
 }
 
-.app-sidebar-foot {
-  margin-top: auto;
-  font-size: 11px;
-  color: var(--text-faint);
-  padding-top: 10px;
-  border-top: 1px solid var(--border-dark);
-  line-height: 1.6;
-}
-
 .app-main {
   padding: 26px 32px 60px;
   max-width: 1520px;
