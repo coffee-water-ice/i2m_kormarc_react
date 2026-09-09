@@ -3,9 +3,10 @@ import { checkBackendHealth } from '../api/client'
 import type { HealthStatus } from '../types/api'
 
 /**
- * streamlit_app.py(Home)의 "시스템 상태" 패널을 대응시킨 것.
- * 지금은 준비 단계 확인용 — 실제로 로컬 백엔드(uvicorn app:app --port 8000)에
- * 연결되는지를 눈으로 볼 수 있게 하는 배관(plumbing) 테스트 페이지 역할이 크다.
+ * streamlit_app.py(Home)의 "시스템 상태" 패널을 대응시킨 것 + 사용 설명서(사서 대상
+ * 안내문, 2026-09-09 요청 그대로 반영 — 단건/일괄 변환 각각의 개념 한 줄 설명과
+ * "방법" 단계 목록). 백엔드 연결 상태 패널은 로컬 백엔드(uvicorn app:app --port 8000)에
+ * 연결되는지를 눈으로 볼 수 있게 하는 배관(plumbing) 확인용으로 그대로 둔다.
  */
 export default function Home() {
   const [health, setHealth] = useState<HealthStatus | null>(null)
@@ -22,9 +23,65 @@ export default function Home() {
     <div>
       <h1>I2M KORMARC 통합 변환 시스템 (React 준비)</h1>
       <p style={{ color: 'var(--text-dim)' }}>
-        아직 기능을 이식하지 않은 준비(스캐폴딩) 단계입니다. 이 페이지는 로컬 FastAPI
-        백엔드와의 연결 배관이 정상인지 확인하는 용도입니다.
+        왼쪽 사이드바의 "ISBN 변환"(단건/일괄)과 "평가시스템"을 바로 사용할 수 있습니다.
+        아래 사용 설명서를 참고하세요.
       </p>
+
+      <h2 style={{ fontSize: 16, marginTop: 28 }}>사용 설명서</h2>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: 16,
+        }}
+      >
+        <div
+          style={{
+            background: 'var(--panel-bg)',
+            border: '1px solid var(--border-dark)',
+            borderRadius: 10,
+            padding: 16,
+            fontSize: 13.5,
+            lineHeight: 1.75,
+          }}
+        >
+          <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>📄 단건 변환</h3>
+          <p style={{ margin: '0 0 10px', color: 'var(--text-dim)' }}>
+            ISBN 한 건을 입력 후 수정 및 다운로드 가능
+          </p>
+          <div style={{ color: 'var(--text-faint)', fontSize: 12, marginBottom: 4 }}>방법</div>
+          <ol style={{ margin: 0, paddingLeft: 18 }}>
+            <li>ISBN 입력 후 변환 실행.</li>
+            <li>이때는 049(소장사항)을 별도로 입력해야 함.</li>
+            <li>수정 후 "수정함" 클릭.</li>
+            <li>사서 편집 항목의 전체 복사나 MRC 다운 사용.</li>
+          </ol>
+        </div>
+
+        <div
+          style={{
+            background: 'var(--panel-bg)',
+            border: '1px solid var(--border-dark)',
+            borderRadius: 10,
+            padding: 16,
+            fontSize: 13.5,
+            lineHeight: 1.75,
+          }}
+        >
+          <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>📤 일괄 변환</h3>
+          <p style={{ margin: '0 0 10px', color: 'var(--text-dim)' }}>
+            2건 이상의 ISBN을 검색 시 사용하며 입력 후 수정 및 일괄 다운로드 가능
+          </p>
+          <div style={{ color: 'var(--text-faint)', fontSize: 12, marginBottom: 4 }}>방법</div>
+          <ol style={{ margin: 0, paddingLeft: 18 }}>
+            <li>일괄 업로드 &gt; 예시파일 다운로드 &gt; 해당 내용 입력 및 컴퓨터에 저장.</li>
+            <li>일괄 업로드 &gt; 엑셀 파일 선택 &gt; 저장한 파일 선택 &gt; 내용 검토 &gt; 확인.</li>
+            <li>이때는 049(소장사항)을 별도로 입력 불필요.</li>
+            <li>수정 후 "수정함" 클릭.</li>
+            <li>일괄 저장 &gt; 필요한 항목 선택 &gt; 일괄 저장(MRC+MRK) 클릭.</li>
+          </ol>
+        </div>
+      </div>
 
       <h2 style={{ fontSize: 16, marginTop: 28 }}>백엔드 연결 상태</h2>
       {loading && <p>확인 중...</p>}

@@ -149,7 +149,7 @@ export default function IsbnConvert() {
     setHistory((h) => h.map((r) => (r.uid === uid ? { ...r, ...patch } : r)))
   }
 
-  /** "수정" 버튼(예전 이름 "저장") — 지금까지의 초안을 실제 변환 내역(history)에
+  /** "수정함" 버튼(예전 이름 "저장" → "수정") — 지금까지의 초안을 실제 변환 내역(history)에
    * 확정 반영한다. 반영 전에 형식을 검사해서, 문제가 있으면 반영하지 않고 그 행으로
    * 스크롤+반짝임을 준다. */
   function handleSaveDraft() {
@@ -348,7 +348,7 @@ export default function IsbnConvert() {
                 </div>
                 <div className="card-actions">
                   <button className="btn-save" onClick={handleSaveDraft} disabled={!dirty}>
-                    ✏️ 수정
+                    ✏️ 수정함
                   </button>
                   <button onClick={handleCopyAll}>⧉ 전체 복사</button>
                   <button
