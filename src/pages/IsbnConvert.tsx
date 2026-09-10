@@ -50,6 +50,18 @@ function findSaveBlockingIssue(fields: MrkField[]): { tag: string; reason: strin
   return null
 }
 
+/** 653(비통제 주제어) 생성 품질 경고 원본 코드 → 사람이 읽을 문구. 백엔드
+ * (core/fields/marc_653.py의 _finalize_653)가 만드는 flags 문자열을 그대로 키로
+ * 쓴다 — 매핑에 없는 새 플래그가 추가돼도 raw 문자열 그대로 보여주도록
+ * FIELD_653_FLAG_LABELS[flag] ?? flag로 폴백한다. */
+const FIELD_653_FLAG_LABELS: Record<string, string> = {
+  AI생성부족: 'AI가 생성한 키워드 자체가 적음',
+  과다차단: '금지어·저효용어 필터링으로 절반 넘게 걸러짐',
+  텍스트fallback사용: 'AI 키워드가 전부 걸러져 책소개/목차 텍스트에서 대체 추출',
+  카테고리fallback사용: '그래도 부족해 카테고리 기반 대체 키워드로 보충',
+  키워드부족: '최종 키워드 수가 기준(5개, 문학/에세이는 3개)에 못 미침',
+}
+
 /**
  * pages/1_2026_ISBN_변환.py + pages/4_ISBN_변환_프로토타입.py(스트림릿)의 후속 —
  * prototypes/mrk_editor_prototype.html의 UI/UX를 React로 실제 이식한 페이지.
@@ -197,6 +209,7 @@ export default function IsbnConvert() {
   }
 
   const candidates = current?.meta.kdc_candidates ?? []
+  const field653Flags = current?.meta.field_653_quality_flags ?? []
 
   /** 라디오 선택/세목 입력 결과를 draft의 056 $a에 즉시 반영(저장 전까지는 초안일 뿐).
    * 세목 칸이 비어 있으면(사용자가 지웠거나) '0'을 기본값으로 쓴다 — 강(2자리)만
@@ -386,6 +399,12 @@ export default function IsbnConvert() {
                   </button>
                 </div>
               </div>
+
+              {field653Flags.length > 0 && (
+                <div className="field-quality-warning">
+                  ⚠️ 653 품질 경고 — {field653Flags.map((f) => FIELD_653_FLAG_LABELS[f] ?? f).join(' · ')}
+                </div>
+              )}
 
               <FieldEditor
                 fields={draftFields}

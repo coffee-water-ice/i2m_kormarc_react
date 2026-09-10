@@ -50,6 +50,14 @@ export interface ConvertMeta {
   kdc_input_presence?: Record<string, boolean>
   kdc_reason?: string
 
+  // 653(비통제 주제어) 생성 품질 경고 — core/fields/marc_653.py의 _finalize_653이
+  // 계산하는 flags(예: "AI생성부족"/"과다차단"/"텍스트fallback사용"/
+  // "카테고리fallback사용"/"키워드부족"). 예전엔 백엔드 dbg() 로그로만 남고 여기까지
+  // 안 올라오던 걸 2026-09-10에 끌어올렸다(사용자 확인) — 사서편집 화면에 실시간으로
+  // 보여주기 위함. "tag_"로 시작하지 않는 이름인 이유는 바로 아래 인덱스 시그니처
+  // 참고(그 패턴에 걸리면 string[] 타입이 string과 충돌한다).
+  field_653_quality_flags?: string[]
+
   toc_text?: string
   illus_diagnosis?: string
   debug_lines?: string[]
