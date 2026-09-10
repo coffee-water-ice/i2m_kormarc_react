@@ -183,12 +183,15 @@
   color: var(--text-faint);
   padding: 2px 6px;
 }
+/* 예전엔 max-height:40vh/overflow-y:auto로 목록 안에 자체 스크롤바를 뒀었는데,
+   일괄 업로드 10건처럼 항목이 늘어나면 스크롤이 생겨 보기 불편하다는 요청으로
+   없앴다 — 이제 목록은 제한 없이 아래로 그냥 늘어난다. "ISBN 변환" 네비 항목을
+   맨 아래로 내린 것도 같은 이유(요청 5, 2026-09-09) — 긴 목록이 늘어나도 그
+   아래에 또 다른 네비 항목이 없어서 레이아웃이 안 깨진다. */
 .history-list {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  max-height: 40vh;
-  overflow-y: auto;
 }
 .history-item {
   text-align: left;
