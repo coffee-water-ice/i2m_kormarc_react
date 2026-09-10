@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MrkField, MrkSubfield } from '../types/mrk'
-import { RAIL_COLOR, TAG_META } from '../types/mrk'
+import { RAIL_COLOR } from '../types/mrk'
 import { MARC_FT, missingSubfields, serializeField, toRealMarcRowFragment } from '../lib/mrk'
 import type { MarcSubfieldMeta } from '../data/marcSchema'
-import { getIndicatorHint, getSubfieldHint, listSubfields } from '../lib/marcSchema'
+import { getIndicatorHint, getSubfieldHint, getTagName, listSubfields } from '../lib/marcSchema'
 import type { CaretRect } from './MarcCaretHint'
 import { IndicatorSubfieldTooltip, SubfieldPicker } from './MarcCaretHint'
 import './FieldEditor.css'
@@ -126,7 +126,7 @@ function tokenizeRow(rowText: string): RowToken[] {
 
 function buildRowHtml(rowText: string): string {
   const tokens = tokenizeRow(rowText)
-  const tooltip = escapeHtml(TAG_META[rowText.slice(0, 3)] ?? '')
+  const tooltip = escapeHtml(getTagName(rowText.slice(0, 3)))
   return tokens
     .map((t, i) => {
       const attrs = i === 0 ? ` data-tooltip="${tooltip}"` : ''

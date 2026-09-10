@@ -38,7 +38,6 @@ export const REQUIRED_SUBFIELDS: Record<string, string[]> = {
   '700': ['a'],
 }
 
-/** 태그 설명(툴팁용) — mrk_editor_prototype.html의 TAG_META 그대로. */
 /** 필드 종류별 왼쪽 테두리 색 — mrk_editor_prototype.html의 RAIL_COLOR 그대로. */
 export const RAIL_COLOR: Record<string, string> = {
   '007': 'var(--rail-control)',
@@ -62,28 +61,4 @@ export const RAIL_COLOR: Record<string, string> = {
   '900': 'var(--rail-added)',
   '940': 'var(--rail-title)',
   '950': 'var(--rail-price)',
-}
-
-export const TAG_META: Record<string, string> = {
-  '007': '자료유형 고정길이 부호',
-  '008': '부호화정보(발행년·언어 등 고정 항목)',
-  '020': '표준번호(ISBN)',
-  '041': '언어부호',
-  '049': '소장사항',
-  '056': 'KDC 분류기호',
-  '090': '자관청구기호',
-  '245': '표제와 책임표시',
-  '246': '다른 표제',
-  '260': '발행사항 — 발행지·발행처·발행년',
-  '300': '형태사항 — 페이지·크기',
-  '490': '총서사항 — 총서명·권차',
-  '500': '일반주기',
-  '546': '언어주기',
-  '653': '비통제 주제어',
-  '700': '부출표목 — 개인명',
-  '710': '부출표목 — 기관명',
-  '830': '총서 부출표목(통일표제)',
-  '900': '부출표목(원어 표기)',
-  '940': '표제 한글 음역 색인',
-  '950': '가격',
 }

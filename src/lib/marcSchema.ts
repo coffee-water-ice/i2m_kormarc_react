@@ -55,3 +55,14 @@ export function listSubfields(tag: string): MarcSubfieldMeta[] {
   }
   return out
 }
+
+/** FieldEditor.tsx의 태그 설명 툴팁용 — tag의 이름을 돌려준다. 예전엔 types/mrk.ts의
+ * TAG_META(mrk_editor_prototype.html에서 그대로 가져온 21개 태그짜리 손수 작성 목록)를
+ * 썼는데, MARC_SCHEMA가 이미 국립중앙도서관 원본 기준 190개 태그 전부의 이름을 담고
+ * 있어서(TAG_META의 상위 호환) 2026-09-10에 이걸로 갈아끼웠다 — "올바른 태그가
+ * 입력되면 설명이 나오게" 해 달라는 요청. 없는 태그는 빈 문자열(TAG_META[...] ?? ''와
+ * 동일한 계약 — styles/tokens.css의 [data-tooltip]:not([data-tooltip=''])가 빈
+ * 문자열이면 툴팁 자체를 안 띄워준다). */
+export function getTagName(tag: string): string {
+  return MARC_SCHEMA[tag]?.name ?? ''
+}
