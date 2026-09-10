@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { MrkField, MrkSubfield } from '../types/mrk'
 import { RAIL_COLOR, TAG_META } from '../types/mrk'
 import { MARC_FT, missingSubfields, serializeField, toRealMarcRowFragment } from '../lib/mrk'
+import type { MarcSubfieldMeta } from '../data/marcSchema'
+import { getIndicatorHint, getSubfieldHint, listSubfields } from '../lib/marcSchema'
+import type { CaretRect } from './MarcCaretHint'
+import { IndicatorSubfieldTooltip, SubfieldPicker } from './MarcCaretHint'
 import './FieldEditor.css'
 
 interface FieldEditorProps {
@@ -261,6 +265,18 @@ function closestFieldRow(node: Node | null, container: HTMLElement): HTMLElement
   return null
 }
 
+/** Alt 단독 tap으로 뜨는 식별기호 픽커의 상태 — 열 때의 캐럿 자리(rowIdx/savedOffset)를
+ * 같이 들고 있다가, 항목을 고르면 그 자리로 캐럿을 되돌린 뒤 Alt+글자와 같은 방식으로
+ * 삽입한다(FieldEditor 안 chooseSubfieldFromPicker 참고). */
+interface SubfieldPickerState {
+  rowIdx: number
+  savedOffset: number
+  tag: string
+  items: MarcSubfieldMeta[]
+  highlightedIndex: number
+  rect: CaretRect
+}
+
 /**
  * mrk_editor_prototype.html의 필드 편집 카드를 이식 — 다만 프로토타입도 칸/행마다 별도
  * contenteditable이라 여러 필드에 걸친 드래그 선택은 안 됐다. 파일 상단 코멘트에
@@ -280,6 +296,22 @@ export default function FieldEditor({
   const composingRowsRef = useRef<Set<number>>(new Set())
   const lastSnapshotTimeRef = useRef<Map<number, number>>(new Map())
   const [pendingFocus, setPendingFocus] = useState<{ row: number; offset: number } | null>(null)
+
+  // ── 지시기호·식별기호 캐럿 힌트 + Alt 단독 tap 식별기호 픽커 ──
+  // marcSchema 조회 자체는 src/lib/marcSchema.ts가 하고, 여기서는 "캐럿이 지금 어디에
+  // 있는가"만 판단한다(recomputeCaretHint/openSubfieldPicker 참고).
+  const [caretHint, setCaretHint] = useState<{ title: string; body: string; rect: CaretRect } | null>(null)
+  const [subfieldPicker, setSubfieldPicker] = useState<SubfieldPickerState | null>(null)
+  // document 레벨 mousedown 리스너(아래 useEffect)는 한 번만 등록돼 있어 React state를
+  // 직접 못 읽으므로(클로저가 첫 렌더 값에 고정됨) ref로 최신값을 따로 미러링한다.
+  const subfieldPickerRef = useRef<SubfieldPickerState | null>(null)
+  useEffect(() => {
+    subfieldPickerRef.current = subfieldPicker
+  }, [subfieldPicker])
+  // Alt가 다른 키 없이 "단독으로" 눌렸다 떼졌는지 추적 — keydown에서 Alt가 눌리면 true,
+  // Alt가 아닌 다른 키가 끼어들면(Alt+글자 조합 포함) 곧바로 false로 꺼진다. keyup에서
+  // 여전히 true일 때만 "단독 tap"으로 보고 식별기호 픽커를 연다.
+  const altArmedRef = useRef(false)
 
   // rowIdx별로 "같은" ref 콜백 함수를 재사용한다 — 인라인 화살표 함수를 ref에 직접
   // 넘기면 렌더마다 새 함수 레퍼런스가 되어 React가 매 렌더마다 detach(null)→
@@ -311,6 +343,138 @@ export default function FieldEditor({
     if (!sel || sel.rangeCount === 0) return null
     const rowEl = closestFieldRow(sel.getRangeAt(0).startContainer, containerEl)
     return rowEl ? Number(rowEl.dataset.row) : null
+  }
+
+  /** 지금 캐럿(collapsed 선택)의 뷰포트 좌표 — 말풍선/픽커를 그 근처에 띄우는 데 쓴다.
+   * 선택이 없거나 범위 선택 중이면 null(그 경우 호출한 쪽에서 힌트 자체를 안 띄운다). */
+  function getCaretRect(): CaretRect | null {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return null
+    const range = sel.getRangeAt(0)
+    const rects = range.getClientRects()
+    const r = rects.length > 0 ? rects[0] : range.getBoundingClientRect()
+    if (r.left === 0 && r.top === 0 && r.bottom === 0) return null
+    return { left: r.left, top: r.top, bottom: r.bottom }
+  }
+
+  /** 캐럿이 지시기호 자리(태그 뒤 3~4번째 글자)나 이미 입력된 식별기호 코드 글자
+   * 위/직후에 있으면 그 의미를 말풍선으로 띄운다 — "지시기호에 유효한 값이 입력되면
+   * 이름·의미를 보여준다"와 "식별기호 알파벳에 커서가 갔을 때 의미를 보여준다"를 캐럿
+   * 위치 하나로 함께 판단한다. document의 selectionchange(아래 useEffect)에서 호출된다. */
+  function recomputeCaretHint() {
+    const containerEl = containerRef.current
+    if (!containerEl) return
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) {
+      setCaretHint(null)
+      return
+    }
+    const rowEl = closestFieldRow(sel.getRangeAt(0).startContainer, containerEl)
+    if (!rowEl) {
+      setCaretHint(null)
+      return
+    }
+    const rowIdx = Number(rowEl.dataset.row)
+    const contentEl = rowRefs.current.get(rowIdx)
+    const offset = contentEl ? getCaretOffsetInRow(contentEl) : null
+    if (!contentEl || offset === null) {
+      setCaretHint(null)
+      return
+    }
+    const rowText = stripPlaceholder(contentEl.textContent ?? '')
+    const tag = rowText.slice(0, 3)
+    if (!isThreeDigitTag(tag) || isControlTag(tag)) {
+      setCaretHint(null)
+      return
+    }
+
+    // 지시기호: 오프셋 3/4/5가 각각 1·2지시기호와 맞닿아 있다. 글자를 막 입력하면
+    // 캐럿이 그 글자 "뒤"로 넘어가므로(offset 3에 "2"를 치면 캐럿은 offset 4가 됨),
+    // "방금 입력한 값"을 보여주려면 오프셋 4는 우선 1지시기호(바로 앞 글자)로,
+    // 오프셋 5는 2지시기호(바로 앞 글자)로 해석해야 한다 — 그래야 "유효한 값이
+    // 입력되면" 요구사항대로 타이핑 직후에 뜬다. 오프셋 3은 아직 아무것도 안 지나온
+    // 자리라 그 자리(=1지시기호)의 글자를 그대로 본다. 오프셋 4에서 1지시기호가
+    // 정의된 값이 아니면(아직 안 쳤거나 무효값) 2지시기호(그 자리에 이미 있는 값)로
+    // 대체한다 — 클릭으로 캐럿만 옮겨온 경우를 위한 보조.
+    if (offset === 3 || offset === 4 || offset === 5) {
+      let pos: 1 | 2 | null = null
+      let hint = null as ReturnType<typeof getIndicatorHint>
+      if (offset === 3 && rowText.length > 3) {
+        pos = 1
+        hint = getIndicatorHint(tag, 1, rowText[3])
+      } else if (offset === 4) {
+        if (rowText.length > 3) hint = getIndicatorHint(tag, 1, rowText[3])
+        if (hint) pos = 1
+        else if (rowText.length > 4) {
+          pos = 2
+          hint = getIndicatorHint(tag, 2, rowText[4])
+        }
+      } else if (offset === 5 && rowText.length > 4) {
+        pos = 2
+        hint = getIndicatorHint(tag, 2, rowText[4])
+      }
+      const rect = hint && getCaretRect()
+      setCaretHint(hint && pos && rect ? { title: `${pos}지시기호 — ${hint.name}`, body: hint.meaning, rect } : null)
+      return
+    }
+
+    // 식별기호: "▼코드" 쌍의 코드 글자 직전/직후에 캐럿이 있는지 찾는다 — Alt+글자로
+    // 막 삽입한 직후 캐럿이 서는 자리와 같은 위치라 자연스럽게 뜬다.
+    const rest = rowText.slice(5)
+    const re = /▼(.)/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(rest))) {
+      const codeIdx = 5 + m.index + 1
+      if (offset === codeIdx || offset === codeIdx + 1) {
+        const hint = getSubfieldHint(tag, m[1])
+        const rect = hint && getCaretRect()
+        setCaretHint(
+          hint && rect
+            ? { title: `▼${hint.code} — ${hint.name}`, body: hint.repeatable ? '반복 가능' : '반복 불가', rect }
+            : null,
+        )
+        return
+      }
+    }
+    setCaretHint(null)
+  }
+
+  /** handleContainerKeyUp(Alt 단독 tap)에서 호출 — 현재 캐럿이 있는 데이터필드 행의
+   * 식별기호 목록을 그 자리에 띄운다. 제어필드·아직 3자리가 안 된 태그·스키마에 없는
+   * 태그·캐럿 위치를 못 구하는 경우엔 조용히 무시한다(픽커 없이 기존 Alt+글자 단축키만
+   * 계속 동작). */
+  function openSubfieldPicker() {
+    const rowIdx = currentRowIndex()
+    if (rowIdx === null) return
+    const f = fields[rowIdx]
+    if (!f || f.kind !== 'data') return
+    const items = listSubfields(f.tag)
+    if (items.length === 0) return
+    const rowEl = rowRefs.current.get(rowIdx)
+    const savedOffset = rowEl ? getCaretOffsetInRow(rowEl) : null
+    const rect = getCaretRect()
+    if (!rowEl || savedOffset === null || !rect) return
+    setCaretHint(null)
+    setSubfieldPicker({ rowIdx, savedOffset, tag: f.tag, items, highlightedIndex: 0, rect })
+  }
+
+  function closeSubfieldPicker() {
+    setSubfieldPicker(null)
+  }
+
+  /** 픽커에서 코드를 고르면(클릭 또는 Enter) 픽커를 열 때 저장해둔 캐럿 자리로 먼저
+   * 되돌아간 뒤 Alt+글자와 완전히 같은 방식으로 삽입한다 — ▲ 표시/색상/직렬화 등 기존
+   * 로직을 그대로 재사용하기 위함. */
+  function chooseSubfieldFromPicker(code: string) {
+    const picker = subfieldPicker
+    if (!picker) return
+    const rowEl = rowRefs.current.get(picker.rowIdx)
+    if (rowEl) {
+      containerRef.current?.focus()
+      setCaretOffsetInRow(rowEl, picker.savedOffset)
+    }
+    document.execCommand('insertText', false, '▼' + code)
+    setSubfieldPicker(null)
   }
 
   /** 이 행의 라이브 DOM(순수 텍스트)을 읽어 React 상태로 내보내고, 그 자리에서 다시
@@ -360,6 +524,50 @@ export default function FieldEditor({
     el.classList.add('pulse')
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [pulseSignal])
+
+  // 캐럿이 움직일 때마다(타이핑·클릭·방향키 — syncRowFromDom/pendingFocus 복원도 전부
+  // Selection.addRange를 거치므로 이 리스너 하나로 대부분 잡힌다) 지시기호·식별기호
+  // 힌트를 다시 계산한다. recomputeCaretHint는 ref/순수 함수만 참조해서 fields를 직접
+  // 읽지 않으므로(행의 실제 DOM 텍스트를 읽는다) 렌더마다 리스너를 다시 등록할 필요가
+  // 없다 — 마운트 시 한 번만 붙인다.
+  useEffect(() => {
+    function handleSelectionChange() {
+      const containerEl = containerRef.current
+      const sel = window.getSelection()
+      if (!containerEl || !sel || sel.rangeCount === 0 || !containerEl.contains(sel.getRangeAt(0).startContainer)) {
+        setCaretHint(null)
+        return
+      }
+      recomputeCaretHint()
+    }
+    document.addEventListener('selectionchange', handleSelectionChange)
+    return () => document.removeEventListener('selectionchange', handleSelectionChange)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 스크롤되면 캐럿 rect가 낡아지므로(다시 계산하기보단) 그냥 닫는다 — 다음
+  // selectionchange나 Alt tap에서 새 위치로 다시 뜬다.
+  useEffect(() => {
+    function handleScroll() {
+      setCaretHint(null)
+      setSubfieldPicker(null)
+    }
+    window.addEventListener('scroll', handleScroll, true)
+    return () => window.removeEventListener('scroll', handleScroll, true)
+  }, [])
+
+  // 픽커가 열린 상태에서 픽커 바깥(에디터 안 다른 자리 포함)을 클릭하면 닫는다 — 목록
+  // 자체 클릭(항목 선택)은 SubfieldPicker의 li가 onMouseDown에서 e.preventDefault()로
+  // 먼저 처리하므로, 여기서는 항상 "픽커 바깥 클릭"만 걸러진다.
+  useEffect(() => {
+    function handleDocMouseDown(e: MouseEvent) {
+      if (!subfieldPickerRef.current) return
+      if ((e.target as HTMLElement)?.closest?.('.marc-subfield-picker')) return
+      setSubfieldPicker(null)
+    }
+    document.addEventListener('mousedown', handleDocMouseDown, true)
+    return () => document.removeEventListener('mousedown', handleDocMouseDown, true)
+  }, [])
 
   /** rowIdx 행을 (startOffset, endOffset) 지점에서 둘로 쪼갠다 — 앞부분은 그 자리에
    * 남고, 뒷부분(선택 범위가 있었다면 그 사이 글자는 버려짐 — 일반 텍스트 에디터의
@@ -436,6 +644,42 @@ export default function FieldEditor({
   // 그 빈 행 자체를 지워준다.
   function handleContainerKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.nativeEvent.isComposing) return
+
+    // Alt 단독 tap 감지: Alt가 아닌 다른 키가 끼어들면(Alt+글자 조합 포함) 자격을
+    // 취소한다 — handleContainerKeyUp에서 여전히 true일 때만 "단독으로 눌렀다 뗐다"로
+    // 보고 식별기호 픽커를 연다.
+    if (e.key === 'Alt') altArmedRef.current = true
+    else altArmedRef.current = false
+
+    if (subfieldPicker) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSubfieldPicker({ ...subfieldPicker, highlightedIndex: (subfieldPicker.highlightedIndex + 1) % subfieldPicker.items.length })
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSubfieldPicker({
+          ...subfieldPicker,
+          highlightedIndex: (subfieldPicker.highlightedIndex - 1 + subfieldPicker.items.length) % subfieldPicker.items.length,
+        })
+        return
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        chooseSubfieldFromPicker(subfieldPicker.items[subfieldPicker.highlightedIndex].code)
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        closeSubfieldPicker()
+        return
+      }
+      // 방향키/Enter/Escape가 아닌 다른 키(타이핑 등)는 픽커를 닫고 평소대로 흘려보낸다
+      // (아래로 계속 진행 — 예: 그냥 "a"를 치면 픽커는 닫히고 "a"는 정상적으로 입력된다).
+      closeSubfieldPicker()
+    }
+
     const containerEl = containerRef.current
     if (!containerEl) return
     const sel = window.getSelection()
@@ -499,6 +743,16 @@ export default function FieldEditor({
           return
         }
       }
+    }
+  }
+
+  /** Alt를 다른 키 없이 눌렀다 뗀 경우에만(altArmedRef가 handleContainerKeyDown에서
+   * 계속 true로 유지돼 있던 경우) 식별기호 픽커를 연다 — Alt+글자 조합은 keydown에서
+   * 이미 altArmedRef를 꺼두므로 그 조합을 쓰고 Alt를 뗄 때는 여기 안 걸린다. */
+  function handleContainerKeyUp(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === 'Alt' && altArmedRef.current) {
+      altArmedRef.current = false
+      openSubfieldPicker()
     }
   }
 
@@ -568,63 +822,77 @@ export default function FieldEditor({
   }
 
   return (
-    <div
-      className="field-rows"
-      contentEditable
-      suppressContentEditableWarning
-      ref={containerRef}
-      onInput={handleContainerInput}
-      onCompositionStart={handleContainerCompositionStart}
-      onCompositionEnd={handleContainerCompositionEnd}
-      onKeyDown={handleContainerKeyDown}
-      onPaste={handleContainerPaste}
-      onCopy={handleContainerCopy}
-      onMouseDown={handleContainerMouseDown}
-    >
-      {fields.map((f, rowIdx) => {
-        const missing = missingSubfields(f)
-        const tagOk = isThreeDigitTag(f.tag)
-        const qualityTooltip = tagWarningTooltips?.[f.tag]
-        return (
-          <div
-            key={rowIdx}
-            className={'field-row' + (missing.length ? ' has-warning' : '') + (tagOk ? '' : ' tag-error')}
-            data-tag={f.tag}
-            data-row={rowIdx}
-            style={{ ['--rail-color' as string]: RAIL_COLOR[f.tag] ?? (f.kind === 'control' ? 'var(--rail-control)' : 'transparent') }}
-          >
-            <div className="field-row-content" data-row={rowIdx} ref={getRowRefCallback(rowIdx)} />
-            {missing.length > 0 && (
-              <div
-                className="warn-icon"
-                contentEditable={false}
-                data-tooltip={`필수 서브필드 누락: ▼${missing.join(', ▼')}`}
-              >
-                ⚠
+    <>
+      <div
+        className="field-rows"
+        contentEditable
+        suppressContentEditableWarning
+        ref={containerRef}
+        onInput={handleContainerInput}
+        onCompositionStart={handleContainerCompositionStart}
+        onCompositionEnd={handleContainerCompositionEnd}
+        onKeyDown={handleContainerKeyDown}
+        onKeyUp={handleContainerKeyUp}
+        onPaste={handleContainerPaste}
+        onCopy={handleContainerCopy}
+        onMouseDown={handleContainerMouseDown}
+      >
+        {fields.map((f, rowIdx) => {
+          const missing = missingSubfields(f)
+          const tagOk = isThreeDigitTag(f.tag)
+          const qualityTooltip = tagWarningTooltips?.[f.tag]
+          return (
+            <div
+              key={rowIdx}
+              className={'field-row' + (missing.length ? ' has-warning' : '') + (tagOk ? '' : ' tag-error')}
+              data-tag={f.tag}
+              data-row={rowIdx}
+              style={{ ['--rail-color' as string]: RAIL_COLOR[f.tag] ?? (f.kind === 'control' ? 'var(--rail-control)' : 'transparent') }}
+            >
+              <div className="field-row-content" data-row={rowIdx} ref={getRowRefCallback(rowIdx)} />
+              {missing.length > 0 && (
+                <div
+                  className="warn-icon"
+                  contentEditable={false}
+                  data-tooltip={`필수 서브필드 누락: ▼${missing.join(', ▼')}`}
+                >
+                  ⚠
+                </div>
+              )}
+              {qualityTooltip && (
+                <div
+                  className="quality-icon tooltip-pre"
+                  contentEditable={false}
+                  data-tooltip={qualityTooltip}
+                >
+                  ⚠️
+                </div>
+              )}
+              <div className="row-actions" contentEditable={false}>
+                <button
+                  type="button"
+                  className="row-copy"
+                  data-tooltip="이 필드 복사"
+                  onClick={() => onCopyLine(serializeField(f))}
+                >
+                  ⧉
+                </button>
               </div>
-            )}
-            {qualityTooltip && (
-              <div
-                className="quality-icon tooltip-pre"
-                contentEditable={false}
-                data-tooltip={qualityTooltip}
-              >
-                ⚠️
-              </div>
-            )}
-            <div className="row-actions" contentEditable={false}>
-              <button
-                type="button"
-                className="row-copy"
-                data-tooltip="이 필드 복사"
-                onClick={() => onCopyLine(serializeField(f))}
-              >
-                ⧉
-              </button>
             </div>
-          </div>
-        )
-      })}
-    </div>
+          )
+        })}
+      </div>
+      {caretHint && <IndicatorSubfieldTooltip rect={caretHint.rect} title={caretHint.title} body={caretHint.body} />}
+      {subfieldPicker && (
+        <SubfieldPicker
+          rect={subfieldPicker.rect}
+          tag={subfieldPicker.tag}
+          items={subfieldPicker.items}
+          highlightedIndex={subfieldPicker.highlightedIndex}
+          onHoverIndex={(i) => setSubfieldPicker({ ...subfieldPicker, highlightedIndex: i })}
+          onChoose={chooseSubfieldFromPicker}
+        />
+      )}
+    </>
   )
 }

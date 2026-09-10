@@ -1,0 +1,91 @@
+/* FieldEditor.tsx의 캐럿 힌트(지시기호·식별기호 의미 말풍선)와 Alt 단독 tap 식별기호
+   픽커 — 둘 다 document.body에 포털로 렌더한다(.field-rows의 TreeWalker가 순회하는
+   서브트리 밖에 반드시 둬야 캐럿 오프셋 계산이 안 깨진다 — FieldEditor.tsx 상단 코멘트
+   참고). position:fixed + 캐럿의 뷰포트 좌표로 배치한다. */
+
+.marc-hint-tooltip {
+  z-index: 3000;
+  background: #1c1f2b;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.4;
+  padding: 6px 9px;
+  border-radius: 6px;
+  max-width: 320px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.marc-hint-tooltip-title {
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.marc-hint-tooltip-body {
+  color: #d7dae4;
+}
+
+.marc-subfield-picker {
+  z-index: 3000;
+  background: var(--card-bg);
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+  min-width: 220px;
+  max-width: 360px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+.marc-subfield-picker-header {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-dim);
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--card-edge);
+  background: #fafbfd;
+}
+.marc-subfield-picker ul {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.marc-subfield-picker li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.marc-subfield-picker li.active {
+  background: var(--tag-blue-bg);
+}
+.marc-subfield-picker-code {
+  flex: none;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--sf-blue);
+}
+.marc-subfield-picker-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.marc-subfield-picker-badge {
+  flex: none;
+  font-size: 10.5px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #fff6e0;
+  color: #a6701c;
+}
+.marc-subfield-picker-badge.non-repeatable {
+  background: #f1f2f6;
+  color: var(--ink-dim);
+}
