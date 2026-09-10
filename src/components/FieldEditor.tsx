@@ -15,6 +15,13 @@ interface FieldEditorProps {
    * 검증 실패한 행을 가리킬 때) — token이 바뀔 때마다 재실행되므로 같은 태그를
    * 연달아 골라도 다시 반짝인다. */
   pulseSignal?: { tag: string; token: number } | null
+  /** 태그별로 행 복사(⧉) 버튼 옆에 ⚠️ 아이콘을 띄우고, 호버 시 보여줄 툴팁 텍스트
+   * (줄바꿈 "\n" 포함 가능). 값이 있는 태그의 행에서만 아이콘이 뜬다. 이 컴포넌트는
+   * 어떤 필드가 왜 경고 대상인지 모르며(범용), IsbnConvert.tsx가 653 품질 경고
+   * (core/fields/marc_653.py의 _finalize_653) 문구를 만들어 넘긴다(2026-09-10 요청 —
+   * 예전엔 카드 상단에 별도 배너로 떴었는데, "653 필드 복사 옆에 ⚠️ 표시만"으로
+   * 바뀌었다). */
+  tagWarningTooltips?: Record<string, string>
 }
 
 /*
@@ -259,7 +266,14 @@ function closestFieldRow(node: Node | null, container: HTMLElement): HTMLElement
  * contenteditable이라 여러 필드에 걸친 드래그 선택은 안 됐다. 파일 상단 코멘트에
  * 전체 설계를 적어뒀다.
  */
-export default function FieldEditor({ fields, onChange, onBeforeStructuralChange, onCopyLine, pulseSignal }: FieldEditorProps) {
+export default function FieldEditor({
+  fields,
+  onChange,
+  onBeforeStructuralChange,
+  onCopyLine,
+  pulseSignal,
+  tagWarningTooltips,
+}: FieldEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rowRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   const lastSyncedRef = useRef<Map<number, string>>(new Map())
@@ -570,6 +584,7 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
       {fields.map((f, rowIdx) => {
         const missing = missingSubfields(f)
         const tagOk = isThreeDigitTag(f.tag)
+        const qualityTooltip = tagWarningTooltips?.[f.tag]
         return (
           <div
             key={rowIdx}
@@ -586,6 +601,15 @@ export default function FieldEditor({ fields, onChange, onBeforeStructuralChange
                 data-tooltip={`필수 서브필드 누락: ▼${missing.join(', ▼')}`}
               >
                 ⚠
+              </div>
+            )}
+            {qualityTooltip && (
+              <div
+                className="quality-icon tooltip-pre"
+                contentEditable={false}
+                data-tooltip={qualityTooltip}
+              >
+                ⚠️
               </div>
             )}
             <div className="row-actions" contentEditable={false}>

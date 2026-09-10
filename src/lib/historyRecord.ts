@@ -7,7 +7,7 @@
  */
 import type { ConvertResult } from '../types/api'
 import type { HistoryRecord } from '../types/history'
-import { parseMrkText, applyKdcToFields, applyHoldingsRegToFields, extractTitle, nextUid } from './mrk'
+import { parseMrkText, applyKdcToFields, applyHoldingsRegToFields, applyCallNumberToFields, extractTitle, nextUid } from './mrk'
 
 export function buildHistoryRecord(result: ConvertResult, holdingsReg?: string): HistoryRecord {
   const fields = parseMrkText(result.mrk_text ?? '')
@@ -19,9 +19,12 @@ export function buildHistoryRecord(result: ConvertResult, holdingsReg?: string):
   // '0'을 기본으로 계산한다(pushKdcToFields와 동일한 규칙). 후보가 없으면 그대로 둔다.
   const kdcDetail = ''
   let initialFields = kdcSelected ? applyKdcToFields(fields, `${kdcSelected}${kdcDetail.trim() || '0'}`) : fields
-  if (holdingsReg && holdingsReg.trim()) {
-    initialFields = applyHoldingsRegToFields(initialFields, holdingsReg)
-  }
+  // 090(056 아래)·049(950 아래)는 사서가 값을 채우기 전에도 항상 편집 화면에 자리가
+  // 보여야 한다는 요청(2026-09-10) — 값이 비어 있어도 두 함수가 스텁으로 만들어
+  // 둔다(lib/mrk.ts 코멘트 참고). ReviewChecklist가 "채워졌는지"를 서브필드 존재
+  // 여부로 판단해 검토 항목을 켜고 끈다.
+  initialFields = applyCallNumberToFields(initialFields, '', '', '')
+  initialFields = applyHoldingsRegToFields(initialFields, holdingsReg ?? '')
   return {
     uid: nextUid(),
     isbn: result.isbn,

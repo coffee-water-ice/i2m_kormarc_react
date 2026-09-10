@@ -95,3 +95,12 @@ body {
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
   pointer-events: none;
 }
+/* 여러 줄 툴팁이 필요한 경우(예: FieldEditor의 .quality-icon — 여러 품질 경고를
+   "원본 코드 → 화면 문구" 한 줄씩 나열) — data-tooltip 값 안의 "\n"이 줄바꿈으로
+   보이도록 pre-line으로 바꾸고 폭을 제한한다. 클래스를 더해서(선택자 자체 길이 동일)
+   위 기본 규칙보다 확실히 나중에/더 구체적으로 매치되게 한다. */
+[data-tooltip].tooltip-pre:not([data-tooltip='']):hover::after {
+  white-space: pre-line;
+  text-align: left;
+  max-width: 280px;
+}

@@ -203,29 +203,28 @@ export function applyKdcToFields(fields: MrkField[], kdc: string): MrkField[] {
 
 /** 049(소장사항/등록번호) 필드를 draft에 반영 — ISBN 변환만으로는 알 수 없는, 사서가
  * 직접 입력해야 하는 값이라(다른 필드처럼 백엔드가 만들어주지 않음) HoldingsPanel의
- * 입력창이 매 타이핑마다 이 함수로 draftFields를 갱신한다. regNo가 비어 있으면(전부
- * 지웠으면) 기존 049 필드를 아예 없앤다 — 선택 입력이라 안 쓰면 필드 자체가 없어야
- * 하기 때문. 지시기호는 '0'(첫 번째)·' '(두 번째, 빈칸)로, 서브필드 코드는 '$l'
- * (소문자 엘 — 대문자 아이 아님, 실제 표기 확인 후 정정됨)로 고정한다(요청 사양).
- * 049가 아직 없을 때 새로 만드는 경우에만 950 바로 다음 자리에
- * 끼워 넣는다(950이 없으면 맨 끝) — 태그 번호 정렬(parseMrkText의 sort)과 무관하게
- * "언제나 950 다음"이어야 한다는 화면 위치 요구사항 때문에 여기서 직접 다룬다. 이미
- * 049가 있으면(사서가 FieldEditor에서 직접 옮겨놨을 수도 있으니) 값만 갱신하고 위치는
- * 건드리지 않는다. */
+ * 입력창이 매 타이핑마다 이 함수로 draftFields를 갱신한다. 지시기호는 '0'(첫 번째)·
+ * ' '(두 번째, 빈칸)로, 서브필드 코드는 '$l'(소문자 엘 — 대문자 아이 아님, 실제 표기
+ * 확인 후 정정됨)로 고정한다(요청 사양).
+ *
+ * 예전엔 regNo가 비어 있으면(전부 지웠으면) 049 필드 자체를 없앴는데, "사서가 아직
+ * 안 채운 상태에서도 950 아래에 항상 빈 049 자리가 보여야 한다"는 요청(2026-09-10)으로
+ * 바뀌었다 — 이제 비어 있어도 지우지 않고 subfields:[]인 스텁으로 남긴다(서브필드가
+ * 없는 049 행 자체는 그대로 화면에 보임). "채워졌는지"는 ReviewChecklist가
+ * subfields.length로 판단한다. 049가 아직 없을 때 새로 만드는 경우에만 950 바로
+ * 다음 자리에 끼워 넣는다(950이 없으면 맨 끝) — 태그 번호 정렬(parseMrkText의 sort)과
+ * 무관하게 "언제나 950 다음"이어야 한다는 화면 위치 요구사항 때문에 여기서 직접
+ * 다룬다. 이미 049가 있으면(사서가 FieldEditor에서 직접 옮겨놨을 수도 있으니) 값만
+ * 갱신하고 위치는 건드리지 않는다. */
 export function applyHoldingsRegToFields(fields: MrkField[], regNo: string): MrkField[] {
   const trimmed = regNo.trim()
   const idx049 = fields.findIndex((f) => f.tag === '049')
-
-  if (!trimmed) {
-    return idx049 === -1 ? fields : fields.filter((_, i) => i !== idx049)
-  }
-
   const field049: MrkDataField = {
     tag: '049',
     kind: 'data',
     ind1: '0',
     ind2: ' ',
-    subfields: [{ code: 'l', value: trimmed }],
+    subfields: trimmed ? [{ code: 'l', value: trimmed }] : [],
   }
 
   if (idx049 !== -1) {
@@ -244,16 +243,20 @@ export function applyHoldingsRegToFields(fields: MrkField[], regNo: string): Mrk
 /** 090(자관청구기호) 필드를 draft에 반영 — 049와 마찬가지로 ISBN 변환만으로는 알 수
  * 없는, 사서가 직접 입력해야 하는 값이라 CallNumberPanel의 세 입력창(분류기호/
  * 저자기호/권·연차기호)이 타이핑마다 이 함수로 draftFields를 갱신한다. 지시기호는
- * 둘 다 빈칸으로 고정한다(요청 사양). 세 값 다 비어 있으면 기존 090 필드를 아예
- * 없앤다 — 선택 입력이라 안 쓰면 필드 자체가 없어야 하기 때문. 채워진 값만 해당
- * 서브필드로 넣는다(예: 저자기호만 비어 있으면 $b 없이 $a·$c만).
+ * 둘 다 빈칸으로 고정한다(요청 사양). 채워진 값만 해당 서브필드로 넣는다(예: 저자기호만
+ * 비어 있으면 $b 없이 $a·$c만).
+ *
+ * 예전엔 세 값이 다 비어 있으면 090 필드 자체를 없앴는데, "사서가 아직 안 채운
+ * 상태에서도 056 아래에 항상 빈 090 자리가 보여야 한다"는 요청(2026-09-10)으로
+ * 바뀌었다 — 이제 비어 있어도 지우지 않고 subfields:[]인 스텁으로 남긴다.
+ * "채워졌는지"는 ReviewChecklist가 subfields.length로 판단한다.
  *
  * 049(950 다음에 강제로 끼워 넣음)와 달리, 090은 처음 만들어질 때 태그 번호
  * 오름차순 위치("090" 이상인 첫 필드 앞")에 끼워 넣는다 — 049처럼 위치를 특별
  * 취급해야 할 요구사항이 없고, 이 방식이 056(있으면 090보다 앞)과 245(090보다 뒤)
- * 사이에 자연스럽게 들어가면서 056이 아직 없는 레코드(KDC 후보 미생성)에도
- * 안전하게 동작한다. 이미 090이 있으면(사서가 FieldEditor에서 직접 옮겼을 수도
- * 있으니) 값만 갱신하고 위치는 그대로 둔다. */
+ * 사이에 자연스럽게 들어가면서(즉 결과적으로 "항상 056 아래") 056이 아직 없는
+ * 레코드(KDC 후보 미생성)에도 안전하게 동작한다. 이미 090이 있으면(사서가
+ * FieldEditor에서 직접 옮겼을 수도 있으니) 값만 갱신하고 위치는 그대로 둔다. */
 export function applyCallNumberToFields(
   fields: MrkField[],
   classMark: string,
@@ -265,10 +268,6 @@ export function applyCallNumberToFields(
   if (classMark.trim()) subfields.push({ code: 'a', value: classMark.trim() })
   if (authorMark.trim()) subfields.push({ code: 'b', value: authorMark.trim() })
   if (volMark.trim()) subfields.push({ code: 'c', value: volMark.trim() })
-
-  if (subfields.length === 0) {
-    return idx090 === -1 ? fields : fields.filter((_, i) => i !== idx090)
-  }
 
   const field090: MrkDataField = { tag: '090', kind: 'data', ind1: ' ', ind2: ' ', subfields }
 

@@ -131,6 +131,19 @@
   user-select: none;
 }
 
+/* 653 등 필드별 품질 경고 아이콘 — .warn-icon(필수 서브필드 누락, 저장 검증과 직결)과는
+   성격이 달라서(참고용 경고, IsbnConvert.tsx가 tagWarningTooltips로 태그별 문구를
+   넘길 때만 뜬다) 별도 클래스로 둔다. 이모지 자체가 이미 색이 있어서 color는 안 준다.
+   .warn-icon처럼 .row-actions(hover 시에만 보임)와 달리 항상 보이게 둔다 — 사서가
+   행을 굳이 hover하지 않아도 경고가 있다는 것 자체는 바로 눈에 띄어야 하기 때문. */
+.quality-icon {
+  flex: none;
+  font-size: 13px;
+  padding-top: 3px;
+  cursor: default;
+  user-select: none;
+}
+
 .row-actions {
   flex: none;
   opacity: 0;

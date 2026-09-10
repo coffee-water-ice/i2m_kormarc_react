@@ -1,6 +1,23 @@
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { checkBackendHealth } from '../api/client'
 import type { HealthStatus } from '../types/api'
+import { FIELD_653_FLAGS } from '../lib/qualityFlags653'
+
+const thStyle: CSSProperties = {
+  textAlign: 'left',
+  padding: '6px 10px',
+  borderBottom: '1px solid var(--border-dark)',
+  color: 'var(--text-dim)',
+  fontWeight: 600,
+  whiteSpace: 'nowrap',
+}
+const tdStyle: CSSProperties = {
+  textAlign: 'left',
+  padding: '6px 10px',
+  borderBottom: '1px solid var(--border-dark)',
+  verticalAlign: 'top',
+}
 
 /**
  * streamlit_app.py(Home)의 "시스템 상태" 패널을 대응시킨 것 + 사용 설명서(사서 대상
@@ -82,6 +99,65 @@ export default function Home() {
           </ol>
         </div>
       </div>
+
+      {/* 사서편집 화면에서 653 필드 옆에 뜨는 ⚠️ 아이콘이 무슨 뜻인지 궁금할 때만
+          펼쳐보면 되는 참고 자료 — 평소엔 접혀 있어서 홈 화면을 어지럽히지 않는다
+          (2026-09-10 요청: "653 경고 표를 홈에 필요하면 볼 수 있도록"). 코드/문구/설명
+          내용은 lib/qualityFlags653.ts 하나를 IsbnConvert.tsx(⚠️ 아이콘 툴팁·검토
+          항목 표)와 함께 공유한다 — 여기서 문구를 고치면 사서편집 화면도 같이 바뀐다. */}
+      <h2 style={{ fontSize: 16, marginTop: 28 }}>653 품질 경고 안내</h2>
+      <details
+        style={{
+          background: 'var(--panel-bg)',
+          border: '1px solid var(--border-dark)',
+          borderRadius: 10,
+          padding: 16,
+          fontSize: 13,
+        }}
+      >
+        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+          사서편집 화면에서 653(비통제 주제어) 필드 옆에 ⚠️가 뜨는 이유 — 펼쳐서 보기
+        </summary>
+        <p style={{ color: 'var(--text-dim)', margin: '10px 0', lineHeight: 1.6 }}>
+          GPT가 653 키워드를 생성하는 과정의 품질에 따라 아래 경고 중 하나 이상이 함께 뜰 수
+          있어요(같은 책이라도 변환할 때마다 결과가 달라질 수 있는 AI 생성 특성상, 경고가
+          뜨지 않는 게 오히려 자연스러운 경우도 많아요). ⚠️ 아이콘에 마우스를 올리면 지금 뜬
+          경고만 요약해서 보여주고, 사서 편집 필드 목록 아래 "검토 항목"에는 전체 설명이
+          표로 함께 나와요.
+        </p>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: 12.5 }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>원본 코드</th>
+                <th style={thStyle}>화면 문구</th>
+                <th style={thStyle}>설명</th>
+              </tr>
+            </thead>
+            <tbody>
+              {FIELD_653_FLAGS.map((f) => (
+                <tr key={f.code}>
+                  <td style={tdStyle}>
+                    <code
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        background: 'var(--shell-bg2)',
+                        padding: '1px 6px',
+                        borderRadius: 4,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {f.code}
+                    </code>
+                  </td>
+                  <td style={tdStyle}>{f.label}</td>
+                  <td style={{ ...tdStyle, color: 'var(--text-dim)' }}>{f.description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
 
       <h2 style={{ fontSize: 16, marginTop: 28 }}>백엔드 연결 상태</h2>
       {loading && <p>확인 중...</p>}

@@ -14,10 +14,12 @@ import {
 } from '../lib/mrk'
 import { buildHistoryRecord } from '../lib/historyRecord'
 import { formatElapsed } from '../lib/format'
+import { FIELD_653_FLAG_LABELS } from '../lib/qualityFlags653'
 import FieldEditor from '../components/FieldEditor'
 import ClassificationPanel from '../components/ClassificationPanel'
 import CallNumberPanel from '../components/CallNumberPanel'
 import HoldingsPanel from '../components/HoldingsPanel'
+import ReviewChecklist from '../components/ReviewChecklist'
 import './IsbnConvert.css'
 
 // BatchUploadModal/BatchSaveModal은 xlsx·jszip(수백 KB)을 끌고 오는데, 그 기능을
@@ -48,18 +50,6 @@ function findSaveBlockingIssue(fields: MrkField[]): { tag: string; reason: strin
     }
   }
   return null
-}
-
-/** 653(비통제 주제어) 생성 품질 경고 원본 코드 → 사람이 읽을 문구. 백엔드
- * (core/fields/marc_653.py의 _finalize_653)가 만드는 flags 문자열을 그대로 키로
- * 쓴다 — 매핑에 없는 새 플래그가 추가돼도 raw 문자열 그대로 보여주도록
- * FIELD_653_FLAG_LABELS[flag] ?? flag로 폴백한다. */
-const FIELD_653_FLAG_LABELS: Record<string, string> = {
-  AI생성부족: 'AI가 생성한 키워드 자체가 적음',
-  과다차단: '금지어·저효용어 필터링으로 절반 넘게 걸러짐',
-  텍스트fallback사용: 'AI 키워드가 전부 걸러져 책소개/목차 텍스트에서 대체 추출',
-  카테고리fallback사용: '그래도 부족해 카테고리 기반 대체 키워드로 보충',
-  키워드부족: '최종 키워드 수가 기준(5개, 문학/에세이는 3개)에 못 미침',
 }
 
 /**
@@ -242,6 +232,7 @@ export default function IsbnConvert() {
     (f): f is Extract<MrkField, { kind: 'data' }> => f.kind === 'data' && f.tag === '049',
   )
   const holdingsRegValue = holdings049?.subfields.find((sf) => sf.code === 'l')?.value ?? ''
+  const has049 = holdingsRegValue.trim() !== ''
 
   function handleHoldingsRegChange(value: string) {
     setDraftFields((f) => applyHoldingsRegToFields(f, value))
@@ -257,6 +248,15 @@ export default function IsbnConvert() {
   const classMarkValue = callNumber090?.subfields.find((sf) => sf.code === 'a')?.value ?? ''
   const authorMarkValue = callNumber090?.subfields.find((sf) => sf.code === 'b')?.value ?? ''
   const volMarkValue = callNumber090?.subfields.find((sf) => sf.code === 'c')?.value ?? ''
+  const has090 = (callNumber090?.subfields.length ?? 0) > 0
+
+  // FieldEditor의 ⚠️ 아이콘용 — 태그별 툴팁 텍스트(코드 → 화면 문구, 여러 개면
+  // 줄바꿈으로 이어붙임). 지금은 653만 채운다(카드 상단의 별도 배너 대신 653 필드
+  // 복사 버튼 옆에만 표시해 달라는 요청, 2026-09-10).
+  const tagWarningTooltips: Record<string, string> =
+    field653Flags.length > 0
+      ? { '653': field653Flags.map((code) => `${code} → ${FIELD_653_FLAG_LABELS[code] ?? code}`).join('\n') }
+      : {}
 
   function handleClassMarkChange(value: string) {
     setDraftFields((f) => applyCallNumberToFields(f, value, authorMarkValue, volMarkValue))
@@ -400,19 +400,16 @@ export default function IsbnConvert() {
                 </div>
               </div>
 
-              {field653Flags.length > 0 && (
-                <div className="field-quality-warning">
-                  ⚠️ 653 품질 경고 — {field653Flags.map((f) => FIELD_653_FLAG_LABELS[f] ?? f).join(' · ')}
-                </div>
-              )}
-
               <FieldEditor
                 fields={draftFields}
                 onChange={setDraftFields}
                 onBeforeStructuralChange={pushUndoSnapshot}
                 onCopyLine={handleCopyLine}
                 pulseSignal={pulseSignal}
+                tagWarningTooltips={tagWarningTooltips}
               />
+
+              <ReviewChecklist has090={has090} has049={has049} field653Flags={field653Flags} />
             </div>
 
             <div className="side-panels">
