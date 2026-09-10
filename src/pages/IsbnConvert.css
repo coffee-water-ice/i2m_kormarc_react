@@ -55,6 +55,13 @@
   opacity: 0.6;
   cursor: default;
 }
+/* "단건 변환 실행"과 그다음 버튼("일괄 업로드") 사이를 나머지 버튼들 간격(gap:10px)
+   보다 좀 더 띄운다 — 단건/일괄 두 경로가 서로 다른 흐름이라는 걸 시각적으로도
+   구분해 달라는 요청(2026-09-10). 인접 형제 선택자라 "일괄 업로드"에만 걸리고
+   "일괄 업로드"~"일괄 저장" 사이는 그대로 gap만 적용된다. */
+.isbn-row .btn-primary + button {
+  margin-left: 18px;
+}
 /* "일괄 업로드" — 어두운 셸 배경(.topbar) 위에 놓이는 보조 버튼이라 .card-actions
    button(흰 배경 전제)이 아니라 EvalSystem.css의 어두운 톤 보조 버튼과 맞췄다. */
 .isbn-row button:not(.btn-primary) {
@@ -227,6 +234,34 @@
 /* .mrk보다 덜 쓰는 바이너리 다운로드라 눈에 덜 띄게(mrk_editor_prototype.html과 동일). */
 .card-actions button.mrc {
   color: var(--ink-dim);
+}
+
+/* "자원값" 토글 — 변환 소요시간/GPT 토큰 정보는 그렇게 중요하지 않다는 요청
+   (2026-09-10)으로 기본은 숨기고, 이 버튼을 누르면 바로 아래에 작은 팝오버로만
+   보여준다. 위치 기준(position:relative)을 감싸는 wrap div에 두는 이유는 버튼
+   자체에 두면 .card-actions button 규칙과 상호작용이 꼬일 게 없어 굳이 안 섞기
+   위함 — 팝오버는 이 wrap 기준 절대 위치로 버튼 바로 아래·왼쪽 정렬로 뜬다. */
+.resource-toggle-wrap {
+  position: relative;
+}
+.card-actions button.btn-resource:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.resource-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  background: var(--accent-emerald-bg);
+  color: var(--accent-emerald);
+  border: 1px solid #1f4a37;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 30;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
 }
 
 .toast {

@@ -64,6 +64,15 @@
   font-weight: 600;
   white-space: nowrap;
 }
+/* td는 원래 색 지정이 없어서 body의 밝은 글자색(--text-light, 어두운 배경 전제)을
+   그대로 물려받았다 — 이 표는 흰 카드(.card) 안이라 거의 안 보이는 문제가 있었다
+   (2026-09-10 지적: "표 안쪽 글자들 색이 배경색과 비슷해서 잘 안 보인다"). 첫 칸의
+   code만 명시적으로 var(--ink)를 줬던 게 그나마 보이던 이유 — 이제 FieldEditor의
+   실제 값 글자색(.tok-val)과 같은 var(--ink)를 td 전체에 줘서 세 칸 다 또렷하게
+   보이게 한다. */
+.review-653-table td {
+  color: var(--ink);
+}
 .review-653-table td:first-child {
   white-space: nowrap;
 }

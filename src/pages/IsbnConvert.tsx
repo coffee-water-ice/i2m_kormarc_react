@@ -69,6 +69,11 @@ export default function IsbnConvert() {
   const [toast, setToast] = useState<string | null>(null)
   const [showBatchModal, setShowBatchModal] = useState(false)
   const [showBatchSaveModal, setShowBatchSaveModal] = useState(false)
+  // 변환 소요시간/GPT 토큰 안내 — 예전엔 항상 떠 있었는데 "그렇게 중요하지 않다"는
+  // 요청(2026-09-10)으로 기본은 숨기고, "수정함" 왼쪽의 "자원값" 버튼을 눌렀을 때만
+  // 카드 툴바 아래 작은 팝오버로 보여준다. 레코드를 바꾸면(currentUid 변경) 다시
+  // 닫아둔다 — 안 그러면 이전 레코드에서 열어둔 채로 다른 레코드로 넘어가서 헷갈린다.
+  const [showResourceInfo, setShowResourceInfo] = useState(false)
   // 056 후보를 고를 때마다 매번 다시 반짝이게(같은 태그를 연달아 골라도 재실행되도록)
   // 태그명이 아니라 매번 값이 바뀌는 토큰으로 들고 있는다.
   const [pulseSignal, setPulseSignal] = useState<{ tag: string; token: number } | null>(null)
@@ -95,6 +100,7 @@ export default function IsbnConvert() {
     setDraftKdcSelected(current?.kdcSelected ?? '')
     setDraftKdcDetail(current?.kdcDetail ?? '')
     undoStackRef.current = []
+    setShowResourceInfo(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.uid])
 
@@ -251,12 +257,18 @@ export default function IsbnConvert() {
   const has090 = (callNumber090?.subfields.length ?? 0) > 0
 
   // FieldEditor의 ⚠️ 아이콘용 — 태그별 툴팁 텍스트(코드 → 화면 문구, 여러 개면
-  // 줄바꿈으로 이어붙임). 지금은 653만 채운다(카드 상단의 별도 배너 대신 653 필드
-  // 복사 버튼 옆에만 표시해 달라는 요청, 2026-09-10).
-  const tagWarningTooltips: Record<string, string> =
-    field653Flags.length > 0
-      ? { '653': field653Flags.map((code) => `${code} → ${FIELD_653_FLAG_LABELS[code] ?? code}`).join('\n') }
-      : {}
+  // 줄바꿈으로 이어붙임). 653은 품질 경고 문구, 090/049는 검토 항목과 똑같은 조건
+  // (비어 있음)일 때 "입력필수항목입니다"를 띄운다 — "검토 항목이 있는 필드는 항상
+  // 행 끝에 ⚠️를 띄운다"는 요청(2026-09-10)이라, ReviewChecklist가 판정하는 조건
+  // (has090/has049/field653Flags)을 그대로 재사용한다. 같은 객체를 FieldEditor의
+  // has-warning(옅은 노랑 배경) 판정에도 그대로 쓰므로, 검토 항목이 사라지면(채우면)
+  // 아이콘과 배경 둘 다 한 번에 사라진다.
+  const tagWarningTooltips: Record<string, string> = {}
+  if (field653Flags.length > 0) {
+    tagWarningTooltips['653'] = field653Flags.map((code) => `${code} → ${FIELD_653_FLAG_LABELS[code] ?? code}`).join('\n')
+  }
+  if (!has090) tagWarningTooltips['090'] = '입력필수항목입니다'
+  if (!has049) tagWarningTooltips['049'] = '입력필수항목입니다'
 
   function handleClassMarkChange(value: string) {
     setDraftFields((f) => applyCallNumberToFields(f, value, authorMarkValue, volMarkValue))
@@ -335,7 +347,7 @@ export default function IsbnConvert() {
               />
             </div>
             <button className="btn-primary" onClick={handleConvert} disabled={converting}>
-              {converting ? '변환 중...' : '변환 실행'}
+              {converting ? '단건 변환 중...' : '단건 변환 실행'}
             </button>
             <button type="button" onClick={() => setShowBatchModal(true)}>
               📤 일괄 업로드
@@ -343,13 +355,6 @@ export default function IsbnConvert() {
             <button type="button" onClick={() => setShowBatchSaveModal(true)}>
               💾 일괄 저장
             </button>
-            {/* 변환완료/소요시간/GPT 토큰 안내 — 예전엔 버튼 줄 아래 별도 배너였는데,
-                "일괄 저장" 옆으로 옮겨달라는 요청으로 같은 줄(.isbn-row)에 둔다. */}
-            {!errorMsg && current && elapsedMs !== undefined && (
-              <div className="status-banner">
-                ● 변환 완료 · 소요시간 {formatElapsed(elapsedMs)} · GPT 토큰 {totalTokens.toLocaleString()}개
-              </div>
-            )}
           </div>
           {converting && (
             // 변환은 몇 초~수십 초 걸려서(GPT 호출 포함) 그냥 기다리기 심심하니까 —
@@ -385,6 +390,24 @@ export default function IsbnConvert() {
                   </small>
                 </div>
                 <div className="card-actions">
+                  {/* 변환 소요시간/GPT 토큰 — 예전엔 상단 줄에 항상 떠 있었는데 "그렇게
+                      중요하지 않다"는 요청(2026-09-10)으로 기본은 숨기고, 이 버튼을
+                      누르면 바로 아래에 작은 팝오버로만 보여준다. */}
+                  <div className="resource-toggle-wrap">
+                    <button
+                      type="button"
+                      className="btn-resource"
+                      onClick={() => setShowResourceInfo((v) => !v)}
+                      disabled={elapsedMs === undefined}
+                    >
+                      📊 자원값
+                    </button>
+                    {showResourceInfo && elapsedMs !== undefined && (
+                      <div className="resource-popover">
+                        ● 변환 완료 · 소요시간 {formatElapsed(elapsedMs)} · GPT 토큰 {totalTokens.toLocaleString()}개
+                      </div>
+                    )}
+                  </div>
                   <button className="btn-save" onClick={handleSaveDraft} disabled={!dirty}>
                     ✏️ 수정함
                   </button>

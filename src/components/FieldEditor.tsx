@@ -20,11 +20,14 @@ interface FieldEditorProps {
    * 연달아 골라도 다시 반짝인다. */
   pulseSignal?: { tag: string; token: number } | null
   /** 태그별로 행 복사(⧉) 버튼 옆에 ⚠️ 아이콘을 띄우고, 호버 시 보여줄 툴팁 텍스트
-   * (줄바꿈 "\n" 포함 가능). 값이 있는 태그의 행에서만 아이콘이 뜬다. 이 컴포넌트는
-   * 어떤 필드가 왜 경고 대상인지 모르며(범용), IsbnConvert.tsx가 653 품질 경고
-   * (core/fields/marc_653.py의 _finalize_653) 문구를 만들어 넘긴다(2026-09-10 요청 —
-   * 예전엔 카드 상단에 별도 배너로 떴었는데, "653 필드 복사 옆에 ⚠️ 표시만"으로
-   * 바뀌었다). */
+   * (줄바꿈 "\n" 포함 가능). 값이 있는 태그의 행에서만 아이콘이 뜨고, 그 행의 배경도
+   * has-warning(옅은 노랑) 처리된다 — "검토 항목이 있는 필드는 행 끝에 항상 ⚠️를
+   * 띄우고, 배경도 검토 항목과 같은 색으로 구분해 달라"는 요청(2026-09-10)으로
+   * missingSubfields(필수 서브필드 누락)와 같은 취급을 받는다. 이 컴포넌트는 어떤
+   * 필드가 왜 경고 대상인지 모르며(범용), IsbnConvert.tsx가 653 품질 경고
+   * (core/fields/marc_653.py의 _finalize_653)·090/049 미입력 안내 문구를 만들어
+   * 넘긴다(ReviewChecklist가 판정하는 조건과 동일한 출처를 그대로 재사용 — 검토
+   * 항목이 사라지면 아이콘·배경도 같이 사라진다). */
   tagWarningTooltips?: Record<string, string>
 }
 
@@ -844,7 +847,9 @@ export default function FieldEditor({
           return (
             <div
               key={rowIdx}
-              className={'field-row' + (missing.length ? ' has-warning' : '') + (tagOk ? '' : ' tag-error')}
+              className={
+                'field-row' + (missing.length || qualityTooltip ? ' has-warning' : '') + (tagOk ? '' : ' tag-error')
+              }
               data-tag={f.tag}
               data-row={rowIdx}
               style={{ ['--rail-color' as string]: RAIL_COLOR[f.tag] ?? (f.kind === 'control' ? 'var(--rail-control)' : 'transparent') }}
