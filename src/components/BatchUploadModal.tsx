@@ -99,6 +99,19 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
     handleReupload()
   }
 
+  /** "내용 확인하기" — 이 배치에서 처음으로 성공한 레코드를 골라 곧장 사서편집
+   * 화면으로 넘어간다. 위 justFinished useEffect의 자동 닫힘은 "방금 이 마운트에서
+   * 막 끝난 경우"만 잡아내는데, 배치가 모달을 닫아둔 채(또는 다른 탭) 백그라운드로
+   * 끝나고 나중에 "일괄 업로드"를 다시 열어보면 그 useEffect는 발동하지 않아서
+   * 완료 요약 화면에 "새 배치 시작"만 있고 결과를 보러 돌아갈 방법이 없었다
+   * (2026-09-11 지적 — "변환완료가 된 상태에서 창이 계속 떠있다"). 그 경우를 위한
+   * 수동 경로. */
+  function handleViewFirstRecord() {
+    const first = active?.entries.find((e) => e.record)
+    if (first?.record) setCurrentUid(first.record.uid)
+    onClose()
+  }
+
   const valid = validRowsOnly(rows, issues)
 
   function handleConfirm() {
@@ -290,7 +303,15 @@ export default function BatchUploadModal({ onClose }: BatchUploadModalProps) {
 
             {(active.status === 'done' || active.status === 'stopped-gpt' || active.status === 'cancelled') && (
               <div className="bu-confirm-row">
-                <button type="button" className="btn-primary" onClick={handleStartNewBatch}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleViewFirstRecord}
+                  disabled={!active.entries.some((e) => e.record)}
+                >
+                  📖 내용 확인하기
+                </button>
+                <button type="button" onClick={handleStartNewBatch}>
                   새 배치 시작
                 </button>
               </div>
