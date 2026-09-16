@@ -51,8 +51,11 @@ export const EVAL_056_HEADERS: string[] = [
   'GPT호출(1/0)', 'GPT토큰',
 ]
 
-// app.py의 _run_conversion()이 9단계로 나눠 meta.field_elapsed_ms/field_tokens에
-// 담아주는 키 → 사람이 읽는 라벨. 순서가 곧 CSV 컬럼 순서다.
+// app.py의 _run_conversion()이 필드별로 나눠 meta.field_elapsed_ms/field_tokens에
+// 담아주는 키 → 사람이 읽는 라벨. 순서가 곧 CSV 컬럼 순서다. "파일저장"은 필드가
+// 아니라 save_files:true(useEvalRun.ts)일 때만 추가되는 평가 전용 단계 — 기존 I2M이
+// 소요시간에 .mrc/.mrk 디스크 저장까지 포함해서 재는 것과 계측 범위를 맞추기 위해
+// 고도화 쪽에도 같은 이름 규칙(field_elapsed_ms["file_save"])으로 얹었다.
 const FIELD_STEP_LABELS: [key: string, label: string][] = [
   ['020', '020'],
   ['490_830', '490·830'],
@@ -63,9 +66,10 @@ const FIELD_STEP_LABELS: [key: string, label: string][] = [
   ['300', '300'],
   ['653', '653'],
   ['056', '056'],
+  ['file_save', '파일저장'],
 ]
 
-// 소요시간(초) + 9단계 × (소요(ms)/토큰) = 19개
+// 소요시간(초) + 10단계 × (소요(ms)/토큰) = 21개
 export const EVAL_PERF_HEADERS: string[] = [
   '소요시간(초)',
   ...FIELD_STEP_LABELS.flatMap(([, label]) => [`${label} 소요(ms)`, `${label} 토큰`]),

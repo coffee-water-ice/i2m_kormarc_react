@@ -91,7 +91,11 @@ async function runLoop(isbns: string[], key: string, resultsSoFar: EvalRunResult
     if (cached) {
       entry = cached
     } else {
-      const r = await convertIsbn(isbn)
+      // 평가 전용으로 save_files:true를 켠다 — 기존 I2M(레거시)은 결과 .mrc/.mrk를
+      // 디스크에 저장하는 시간까지 포함해서 소요시간을 재므로, 고도화 쪽도 같은
+      // 조건으로 재야 두 시스템의 "소요시간(초)" 컬럼을 공정하게 비교할 수 있다
+      // (api/client.ts의 ConvertIsbnOptions.saveFiles, app.py의 save_files 참고).
+      const r = await convertIsbn(isbn, { saveFiles: true })
       if (myToken !== runToken) return
       entry = { isbn, mrkText: r.mrk_text ?? '', error: r.error ?? '', meta: r.meta ?? {} }
       const write = appendCheckpointResult(key, entry)

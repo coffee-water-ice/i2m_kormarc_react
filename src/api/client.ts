@@ -63,6 +63,11 @@ export interface ConvertIsbnOptions {
   regNo?: string
   copySymbol?: string
   useAi940?: boolean
+  /** 평가시스템 전용(기본 false) — true면 백엔드가 결과 .mrc/.mrk를 디스크에 저장하고
+   * 그 시간을 meta.field_elapsed_ms.file_save에 남긴다(app.py의 save_files 참고).
+   * 기존 I2M 쪽 소요시간이 파일 저장까지 포함해서 재므로, 평가 비교 시에만 켜서
+   * 계측 범위를 맞춘다 — 사서의 평소 단건 변환에서는 절대 켜지 않는다. */
+  saveFiles?: boolean
 }
 
 export async function convertIsbn(
@@ -79,6 +84,7 @@ export async function convertIsbn(
         reg_no: opts.regNo ?? '',
         copy_symbol: opts.copySymbol ?? '',
         use_ai_940: opts.useAi940 ?? true,
+        save_files: opts.saveFiles ?? false,
       }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
