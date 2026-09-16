@@ -20,7 +20,6 @@
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--ink);
-  border-left: 3px solid var(--rail-color, transparent);
 }
 .field-row + .field-row {
   border-top: 1px solid #f2f3f7;

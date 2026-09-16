@@ -6,7 +6,7 @@
  *
  * 프로토타입과 동일하게, 사용자가 태그 번호를 007→245처럼 바꿔도 control/data 종류
  * 자체는 재분류하지 않는다(행이 생성된 시점의 모양을 유지) — 프로토타입도 이 부분은
- * 안 했다(handleTagInput은 레일 색상·경고만 갱신).
+ * 안 했다(handleTagInput은 경고만 갱신).
  */
 
 export interface MrkSubfield {
@@ -36,29 +36,4 @@ export const REQUIRED_SUBFIELDS: Record<string, string[]> = {
   '260': ['a', 'b', 'c'],
   '300': ['a'],
   '700': ['a'],
-}
-
-/** 필드 종류별 왼쪽 테두리 색 — mrk_editor_prototype.html의 RAIL_COLOR 그대로. */
-export const RAIL_COLOR: Record<string, string> = {
-  '007': 'var(--rail-control)',
-  '008': 'var(--rail-control)',
-  '020': 'var(--rail-control)',
-  '041': 'var(--rail-control)',
-  '049': 'var(--rail-note)',
-  '056': 'var(--rail-class)',
-  '090': 'var(--rail-note)',
-  '245': 'var(--rail-title)',
-  '246': 'var(--rail-title)',
-  '260': 'var(--rail-pub)',
-  '300': 'var(--rail-pub)',
-  '490': 'var(--rail-series)',
-  '500': 'var(--rail-note)',
-  '546': 'var(--rail-note)',
-  '653': 'var(--rail-subject)',
-  '700': 'var(--rail-added)',
-  '710': 'var(--rail-added)',
-  '830': 'var(--rail-series)',
-  '900': 'var(--rail-added)',
-  '940': 'var(--rail-title)',
-  '950': 'var(--rail-price)',
 }

@@ -380,12 +380,6 @@ export default function IsbnConvert() {
         {current && (
           <section className="editor-wrap">
             <div className="card">
-              {/* 외부 API(알라딘 등)·AI(GPT) 생성 결과를 그대로 채워 넣은 초안이라는
-                  걸 사서가 "사서 편집" 카드를 보기 전에 먼저 인지하게 하는 안내
-                  문구(2026-09-11 요청) — 편집 카드 맨 위, 툴바보다도 위에 둔다. */}
-              <div className="card-disclaimer">
-                ℹ️ 해당 데이터는 외부 데이터와 AI를 참고하여 작성된 데이터입니다. 중요한 부분은 꼭 사서의 직접 확인이 필요합니다.
-              </div>
               <div className="card-toolbar">
                 <div className="card-title">
                   사서 편집
@@ -427,6 +421,14 @@ export default function IsbnConvert() {
                     {downloadingMrc ? '인코딩 중...' : '↓ .mrc'}
                   </button>
                 </div>
+              </div>
+
+              {/* 외부 API(알라딘 등)·AI(GPT) 생성 결과를 그대로 채워 넣은 초안이라는
+                  걸 사서가 필드 목록을 보기 전에 먼저 인지하게 하는 안내 문구
+                  (2026-09-11 요청, 2026-09-16 위치 조정) — "사서 편집" 타이틀/툴바와
+                  실제 필드 목록(007 등) 사이에 둔다. */}
+              <div className="card-disclaimer">
+                ℹ️ 해당 데이터는 외부 데이터와 AI를 참고하여 작성된 데이터입니다. 중요한 부분은 꼭 사서의 직접 확인이 필요합니다.
               </div>
 
               <FieldEditor

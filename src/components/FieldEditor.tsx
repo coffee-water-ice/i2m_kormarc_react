@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MrkField, MrkSubfield } from '../types/mrk'
-import { RAIL_COLOR } from '../types/mrk'
 import { MARC_FT, missingSubfields, serializeField, toRealMarcRowFragment } from '../lib/mrk'
 import type { MarcSubfieldMeta } from '../data/marcSchema'
 import { getIndicatorHint, getSubfieldHint, getTagName, listSubfields } from '../lib/marcSchema'
@@ -852,7 +851,6 @@ export default function FieldEditor({
               }
               data-tag={f.tag}
               data-row={rowIdx}
-              style={{ ['--rail-color' as string]: RAIL_COLOR[f.tag] ?? (f.kind === 'control' ? 'var(--rail-control)' : 'transparent') }}
             >
               <div className="field-row-content" data-row={rowIdx} ref={getRowRefCallback(rowIdx)} />
               {missing.length > 0 && (

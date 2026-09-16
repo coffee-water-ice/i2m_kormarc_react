@@ -62,7 +62,7 @@ export default function CallNumberPanel({
         <input
           id="call-vol-mark"
           value={volMark}
-          placeholder="예: v.1"
+          placeholder="예: 1"
           onChange={(e) => onVolMarkChange(e.target.value)}
         />
       </div>
